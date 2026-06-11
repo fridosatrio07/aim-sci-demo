@@ -14,6 +14,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { RecalculationRequiredBadge } from "@/components/rbi/recalculation-required-badge";
 import { ASSET_REGISTRY_TOTAL, type AssetRegistryRow } from "@/lib/asset-registry-data";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ interface AssetRegistryTableProps {
   rows: AssetRegistryRow[];
   filtered: boolean;
   totalCount: number;
+  onRecalculate?: (tagNumber: string) => void;
 }
 
 function riskClass(risk: AssetRegistryRow["currentRiskLevel"]) {
@@ -73,7 +75,7 @@ function HeaderCell({ children }: { children: ReactNode }) {
   );
 }
 
-export function AssetRegistryTable({ rows, filtered, totalCount }: AssetRegistryTableProps) {
+export function AssetRegistryTable({ rows, filtered, totalCount, onRecalculate }: AssetRegistryTableProps) {
   const shownCount = rows.length;
   const totalLabel = filtered ? totalCount : ASSET_REGISTRY_TOTAL;
 
@@ -158,6 +160,15 @@ export function AssetRegistryTable({ rows, filtered, totalCount }: AssetRegistry
                       >
                         View Detail
                       </Link>
+                      {row.calculationTrace?.recalculationRequired ? (
+                        <button
+                          type="button"
+                          onClick={() => onRecalculate?.(row.tagNumber)}
+                          className="inline-flex h-8 items-center justify-center rounded-md border border-amber-200 px-3 text-[11px] font-black text-amber-700 transition hover:bg-amber-50 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-950/35"
+                        >
+                          Recalculate
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-600 transition hover:bg-slate-50 hover:text-blue-700 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-blue-300"
@@ -165,6 +176,9 @@ export function AssetRegistryTable({ rows, filtered, totalCount }: AssetRegistry
                       >
                         <MoreVertical className="h-4 w-4" aria-hidden="true" />
                       </button>
+                    </div>
+                    <div className="mt-2 flex justify-end">
+                      <RecalculationRequiredBadge trace={row.calculationTrace} />
                     </div>
                   </td>
                 </tr>

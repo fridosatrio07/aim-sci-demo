@@ -1,4 +1,11 @@
-import type { ApiHealth, ApiListResponse, AssetApiRecord, CalculationRunResponse } from "@/lib/api-types";
+import type {
+  ApiHealth,
+  ApiListResponse,
+  AssetApiRecord,
+  CalculationRunResponse,
+  CalculationStatusApiRecord,
+  RecalculationResponse
+} from "@/lib/api-types";
 
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
 const REQUEST_TIMEOUT_MS = 2500;
@@ -64,6 +71,12 @@ export const aimApi = {
   getAsset(assetId: string) {
     return requestJson<AssetApiRecord>(`/assets/${encodeURIComponent(assetId)}`);
   },
+  updateAsset(assetId: string, patch: Partial<AssetApiRecord>) {
+    return requestJson<AssetApiRecord>(`/assets/${encodeURIComponent(assetId)}`, {
+      method: "PUT",
+      body: JSON.stringify(patch)
+    });
+  },
   runRbi(assetId: string) {
     return requestJson<CalculationRunResponse>(`/calculations/rbi/${encodeURIComponent(assetId)}`, {
       method: "POST",
@@ -74,6 +87,28 @@ export const aimApi = {
     return requestJson<CalculationRunResponse>(`/calculations/reliability/${encodeURIComponent(assetId)}`, {
       method: "POST",
       body: "{}"
+    });
+  },
+  calculationStatus(assetId: string) {
+    return requestJson<CalculationStatusApiRecord>(`/assets/${encodeURIComponent(assetId)}/calculation-status`);
+  },
+  recalculateAsset(assetId: string) {
+    return requestJson<RecalculationResponse>(`/calculations/recalculate/${encodeURIComponent(assetId)}`, {
+      method: "POST",
+      body: "{}"
+    });
+  },
+  listCalculationRuns(params?: { assetId?: string; stale?: boolean }) {
+    const query = new URLSearchParams();
+    if (params?.assetId) query.set("asset_id", params.assetId);
+    if (typeof params?.stale === "boolean") query.set("stale", String(params.stale));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return requestJson<ApiListResponse<Record<string, unknown>>>(`/calculations/runs${suffix}`);
+  },
+  approveFieldMapping(documentId: string, payload: { approved_fields: Record<string, unknown>; reviewer?: string; comment?: string }) {
+    return requestJson<Record<string, unknown>>(`/documents/${encodeURIComponent(documentId)}/approve-field-mapping`, {
+      method: "POST",
+      body: JSON.stringify(payload)
     });
   },
   riskRegister() {

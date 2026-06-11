@@ -30,6 +30,15 @@ class AssetPatch(BaseModel):
     current_risk_level: RiskLevel | None = None
     reliability_data_readiness: int | None = Field(default=None, ge=0, le=100)
     assessment_status: str | None = None
+    asset_criticality: str | None = None
+    boundary_status: str | None = None
+    next_inspection_due: str | None = None
+    inspection_due_note: str | None = None
+    inspection_status: str | None = None
+    certification_status: str | None = None
+    risk_target_status: str | None = None
+    recommended_inspection_date: str | None = None
+    revalidation_due_date: str | None = None
 
 
 class InspectionRecordIn(BaseModel):

@@ -57,6 +57,15 @@ export interface DataQualityProfile {
   completeness: number;
 }
 
+export interface CalculationTrace {
+  recalculationRequired: boolean;
+  staleCount: number;
+  latestRunId?: string | null;
+  latestCalculationType?: string | null;
+  latestCompletedAt?: string | null;
+  staleReason?: string | null;
+}
+
 export interface RbiAsset {
   id: string;
   tagNumber: string;
@@ -89,6 +98,7 @@ export interface RbiAsset {
   failureRecords: FailureRecord[];
   supportingDocuments: SupportingDocument[];
   dataQualityProfile: DataQualityProfile;
+  calculationTrace?: CalculationTrace;
 }
 
 export interface RbiComponent {
@@ -238,6 +248,7 @@ export interface RbiAssessment {
   technicalNotes: string;
   revisionHistory: RevisionHistoryItem[];
   revalidationDueDate: string;
+  calculationTrace?: CalculationTrace;
 }
 
 export interface RbiStoreState {
@@ -285,6 +296,7 @@ export interface SharedRbiAssessment {
   assessmentStatus: RbiAssessmentStatus;
   supportingDocuments: string[];
   technicalNotes: string;
+  calculationTrace?: CalculationTrace;
 }
 
 export type RbiStoreAction =

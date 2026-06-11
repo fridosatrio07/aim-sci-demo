@@ -30,3 +30,15 @@ def test_health_seed_assets_and_calculations():
     reliability = client.post("/calculations/reliability/V-101", json={})
     assert reliability.status_code == 200
     assert reliability.json()["result"]["mtbf_hours"] > 0
+
+    update = client.put("/assets/V-101", json={"reliability_data_readiness": 77})
+    assert update.status_code == 200
+    assert update.json()["calculation_status"]["recalculation_required"] is True
+
+    status = client.get("/assets/V-101/calculation-status")
+    assert status.status_code == 200
+    assert status.json()["recalculation_required"] is True
+
+    recalculation = client.post("/calculations/recalculate/V-101", json={})
+    assert recalculation.status_code == 200
+    assert recalculation.json()["calculation_status"]["recalculation_required"] is False

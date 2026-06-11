@@ -31,6 +31,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RecalculationRequiredBadge } from "@/components/rbi/recalculation-required-badge";
 import {
   CERTIFICATION_STATUS_REVISED,
   CONSEQUENCE_AXIS,
@@ -62,6 +63,7 @@ import {
   type RiskLevel,
   type SimpleInspectionRow
 } from "@/lib/dashboard-data";
+import { useRbiData } from "@/lib/rbi-store";
 import { cn } from "@/lib/utils";
 
 const kpiIcons = {
@@ -309,7 +311,7 @@ function RiskOverview() {
   );
 }
 
-function CriticalAssetsTable() {
+function CriticalAssetsTable({ assets = TOP_CRITICAL_ASSETS }: { assets?: typeof TOP_CRITICAL_ASSETS }) {
   return (
     <Card className="2xl:col-span-5">
       <CardHeader className="flex-row items-center justify-between gap-3 pb-3">
@@ -327,7 +329,7 @@ function CriticalAssetsTable() {
               </tr>
             </thead>
             <tbody>
-              {TOP_CRITICAL_ASSETS.map((asset, index) => (
+              {assets.map((asset, index) => (
                 <tr key={asset.tagNumber} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
                   <td className="px-3 py-2 text-slate-500">{index + 1}</td>
                   <td className="px-3 py-2 font-bold text-blue-700 dark:text-blue-300">{asset.tagNumber}</td>
@@ -625,6 +627,38 @@ function ActionPriority() {
 }
 
 export function RevisedDashboard() {
+  const { assets, assessments, dataSource, syncMessage } = useRbiData();
+  const staleAssessment = assessments.find((assessment) => assessment.calculationTrace?.recalculationRequired);
+  const dynamicKpis = REVISED_DASHBOARD_KPIS.map((item) => {
+    const highRisk = assets.filter((asset) => ["High", "Very High", "Extreme"].includes(asset.currentRiskLevel)).length;
+    const overdue = assets.filter((asset) => asset.nextInspectionDue.includes("May 2025")).length;
+    const openRecommendations = assessments.reduce((sum, assessment) => sum + assessment.mitigationActions.filter((action) => action.status !== "Completed").length, 0);
+    const expiringCertifications = assets.filter((asset) => asset.certificationStatus === "Expiring Soon").length;
+    const completeness = Math.round(assets.reduce((sum, asset) => sum + asset.reliabilityDataReadiness, 0) / Math.max(1, assets.length));
+    if (item.title === "Total Assets") return { ...item, value: assets.length.toLocaleString("en-US"), trend: "Backend portfolio" };
+    if (item.title === "High Risk Assets") return { ...item, value: highRisk.toLocaleString("en-US"), trend: "From synchronized risk levels" };
+    if (item.title === "Overdue Inspections") return { ...item, value: overdue.toLocaleString("en-US"), trend: "From registry inspection due dates" };
+    if (item.title === "Open Recommendations") return { ...item, value: openRecommendations.toLocaleString("en-US"), trend: "From RBI mitigation actions" };
+    if (item.title === "Expiring Certifications") return { ...item, value: expiringCertifications.toLocaleString("en-US"), trend: "From registry certification status" };
+    if (item.title === "Data Completeness Score") return { ...item, value: `${completeness}%`, status: completeness >= 85 ? "Good" : completeness >= 70 ? "Fair" : "Needs Review" };
+    return item;
+  });
+  const criticalAssets = assets
+    .slice()
+    .sort((a, b) => {
+      const order = { Extreme: 5, "Very High": 4, High: 3, Medium: 2, Low: 1 } as const;
+      return order[b.currentRiskLevel] - order[a.currentRiskLevel];
+    })
+    .slice(0, 10)
+    .map((asset) => ({
+      tagNumber: asset.tagNumber,
+      equipmentName: asset.assetName,
+      type: asset.equipmentType,
+      unit: asset.unit,
+      riskLevel: asset.currentRiskLevel === "Very High" ? "High" : asset.currentRiskLevel === "Low" ? "Medium" : asset.currentRiskLevel,
+      nextInspectionDue: asset.nextInspectionDue
+    })) as typeof TOP_CRITICAL_ASSETS;
+
   return (
     <div className="min-w-0 space-y-3 overflow-hidden pb-5">
       <section className="flex min-w-0 flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] dark:border-slate-800 dark:bg-slate-900 md:flex-row md:items-center md:justify-between">
@@ -641,15 +675,23 @@ export function RevisedDashboard() {
         </Button>
       </section>
 
+      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+        <Badge className={dataSource === "backend" ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900/60 dark:bg-green-950/35 dark:text-green-200" : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-200"}>
+          {dataSource === "backend" ? "Backend synchronized" : "Prototype fallback"}
+        </Badge>
+        <span className="text-slate-500 dark:text-slate-400">{syncMessage}</span>
+        {staleAssessment ? <RecalculationRequiredBadge trace={staleAssessment.calculationTrace} /> : null}
+      </div>
+
       <section aria-label="Dashboard KPI cards" className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-        {REVISED_DASHBOARD_KPIS.map((item) => (
+        {dynamicKpis.map((item) => (
           <KpiCard key={item.title} item={item} />
         ))}
       </section>
 
       <section className="grid min-w-0 grid-cols-1 gap-3 2xl:grid-cols-12">
         <RiskOverview />
-        <CriticalAssetsTable />
+        <CriticalAssetsTable assets={criticalAssets} />
       </section>
 
       <section className="grid min-w-0 grid-cols-1 gap-3 2xl:grid-cols-12">

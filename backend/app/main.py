@@ -77,6 +77,55 @@ async def _record_calculation(kind: str, asset: dict[str, Any], result: dict[str
     return run
 
 
+async def _asset_calculation_status(asset_id: str) -> dict[str, Any]:
+    runs = [run for run in await repo().list_all("calculation_runs") if run.get("asset_id") == asset_id]
+    latest_by_type: dict[str, dict[str, Any]] = {}
+
+    for run in runs:
+        calculation_type = str(run.get("calculation_type", "unknown"))
+        current = latest_by_type.get(calculation_type)
+        run_time = str(run.get("completed_at") or run.get("updated_at") or run.get("created_at") or "")
+        current_time = str(current.get("completed_at") or current.get("updated_at") or current.get("created_at") or "") if current else ""
+        if current is None or run_time >= current_time:
+            latest_by_type[calculation_type] = run
+
+    stale_latest_runs = [run for run in latest_by_type.values() if run.get("stale")]
+    latest_run = max(
+        latest_by_type.values(),
+        key=lambda run: str(run.get("completed_at") or run.get("updated_at") or run.get("created_at") or ""),
+        default=None,
+    )
+    stale_reason = next((run.get("stale_reason") for run in stale_latest_runs if run.get("stale_reason")), None)
+
+    return {
+        "recalculation_required": len(stale_latest_runs) > 0,
+        "stale_count": len(stale_latest_runs),
+        "latest_run_id": latest_run.get("id") if latest_run else None,
+        "latest_calculation_type": latest_run.get("calculation_type") if latest_run else None,
+        "latest_completed_at": latest_run.get("completed_at") if latest_run else None,
+        "stale_reason": stale_reason,
+    }
+
+
+async def _enrich_asset_with_trace(asset: dict[str, Any]) -> dict[str, Any]:
+    return {**asset, "calculation_status": await _asset_calculation_status(asset["id"])}
+
+
+async def _run_recalculation_suite(asset: dict[str, Any]) -> dict[str, Any]:
+    inspections, thickness, failures, maintenance = await _calculation_inputs(asset)
+    results = {
+        "rbi": run_rbi(asset, thickness, failures),
+        "reliability": run_reliability(asset, failures, maintenance),
+        "degradation": run_degradation(asset, thickness),
+        "anomaly_detection": run_anomaly_detection(asset, inspections, thickness),
+    }
+    runs = []
+    for kind, result in results.items():
+        runs.append(await _record_calculation(kind, asset, result))
+    await repo().append_audit("asset_recalculated", "asset", asset["id"], {"calculation_types": list(results.keys())})
+    return {"runs": runs, "results": results}
+
+
 @app.get("/health")
 async def health() -> dict[str, Any]:
     database_ok = await ping_database()
@@ -124,12 +173,15 @@ async def list_assets(
         )
 
     filtered = [item for item in items if matches(item)]
-    return {"items": filtered, "total": len(filtered), "source": "backend"}
+    enriched = []
+    for item in filtered:
+        enriched.append(await _enrich_asset_with_trace(item))
+    return {"items": enriched, "total": len(enriched), "source": "backend"}
 
 
 @app.get("/assets/{asset_id}")
 async def get_asset(asset_id: str) -> dict[str, Any]:
-    return await _asset_or_404(asset_id)
+    return await _enrich_asset_with_trace(await _asset_or_404(asset_id))
 
 
 @app.post("/assets")
@@ -164,7 +216,7 @@ async def create_asset(asset: AssetIn) -> dict[str, Any]:
     }
     await repo().upsert_many("assets", [document])
     await repo().append_audit("asset_created", "asset", document["id"], document)
-    return document
+    return await _enrich_asset_with_trace(document)
 
 
 @app.put("/assets/{asset_id}")
@@ -174,7 +226,7 @@ async def update_asset(asset_id: str, patch: AssetPatch) -> dict[str, Any]:
     if updated is None:
         raise HTTPException(status_code=404, detail="Asset not found")
     await _mark_asset_calculations_stale(asset["id"], "asset master data updated")
-    return updated
+    return await _enrich_asset_with_trace(updated)
 
 
 @app.get("/assets/{asset_id}/inspection-history", response_model=ListResponse)
@@ -270,6 +322,7 @@ async def extract_document(document_id: str) -> dict[str, Any]:
 @app.post("/documents/{document_id}/approve-field-mapping")
 async def approve_field_mapping(document_id: str, approval: FieldMappingApproval) -> dict[str, Any]:
     document = await get_document(document_id)
+    approved_fields = approval.approved_fields
     controlled = await repo().insert_one(
         "controlled_data",
         {
@@ -279,10 +332,36 @@ async def approve_field_mapping(document_id: str, approval: FieldMappingApproval
             "status": "approved",
             "reviewer": approval.reviewer,
             "comment": approval.comment,
-            "approved_fields": approval.approved_fields,
+            "approved_fields": approved_fields,
         },
     )
     if document.get("asset_id"):
+        asset_patch = {
+            key: approved_fields[key]
+            for key in [
+                "asset_name",
+                "equipment_class",
+                "equipment_type",
+                "unit",
+                "system",
+                "service",
+                "current_risk_level",
+                "asset_criticality",
+                "boundary_status",
+                "reliability_data_readiness",
+                "next_inspection_due",
+                "inspection_due_note",
+                "inspection_status",
+                "certification_status",
+                "assessment_status",
+                "risk_target_status",
+                "recommended_inspection_date",
+                "revalidation_due_date",
+            ]
+            if key in approved_fields
+        }
+        if asset_patch:
+            await repo().update_one("assets", document["asset_id"], asset_patch)
         await _mark_asset_calculations_stale(document["asset_id"], "document field mapping approved")
     return controlled
 
@@ -345,8 +424,12 @@ async def calculate_anomaly_detection(asset_id: str) -> dict[str, Any]:
 
 
 @app.get("/calculations/runs", response_model=ListResponse)
-async def calculation_runs() -> dict[str, Any]:
+async def calculation_runs(asset_id: str = "", stale: bool | None = None) -> dict[str, Any]:
     items = await repo().list_all("calculation_runs")
+    if asset_id:
+        items = [item for item in items if item.get("asset_id") == asset_id or item.get("asset_tag") == asset_id]
+    if stale is not None:
+        items = [item for item in items if bool(item.get("stale")) is stale]
     return {"items": items, "total": len(items)}
 
 
@@ -358,21 +441,44 @@ async def calculation_run(run_id: str) -> dict[str, Any]:
     return run
 
 
+@app.get("/assets/{asset_id}/calculation-status")
+async def asset_calculation_status(asset_id: str) -> dict[str, Any]:
+    asset = await _asset_or_404(asset_id)
+    return await _asset_calculation_status(asset["id"])
+
+
+@app.post("/calculations/recalculate/{asset_id}")
+async def recalculate_asset(asset_id: str) -> dict[str, Any]:
+    asset = await _asset_or_404(asset_id)
+    recalculation = await _run_recalculation_suite(asset)
+    return {
+        **recalculation,
+        "asset": await _enrich_asset_with_trace(asset),
+        "calculation_status": await _asset_calculation_status(asset["id"]),
+    }
+
+
 @app.get("/dashboard/summary")
 async def dashboard_summary() -> dict[str, Any]:
     assets = await repo().list_all("assets")
+    statuses = [await _asset_calculation_status(item["id"]) for item in assets]
+    recalculation_required_assets = sum(1 for status in statuses if status["recalculation_required"])
     return {
         "total_assets": len(assets),
         "high_risk_assets": sum(1 for item in assets if item.get("current_risk_level") in {"Extreme", "High"}),
         "overdue_inspections": sum(1 for item in assets if item.get("inspection_status") == "Overdue"),
         "average_data_readiness": round(sum(item.get("reliability_data_readiness", 0) for item in assets) / max(len(assets), 1), 1),
+        "recalculation_required_assets": recalculation_required_assets,
+        "stale_calculations": sum(status["stale_count"] for status in statuses),
     }
 
 
 @app.get("/risk-register", response_model=ListResponse)
 async def risk_register() -> dict[str, Any]:
     assessments = await repo().list_all("rbi_assessments")
-    assets = {asset["id"]: asset for asset in await repo().list_all("assets")}
+    assets = {}
+    for asset in await repo().list_all("assets"):
+        assets[asset["id"]] = await _enrich_asset_with_trace(asset)
     items = [{**item, "asset": assets.get(item.get("asset_id"))} for item in assessments]
     return {"items": items, "total": len(items)}
 

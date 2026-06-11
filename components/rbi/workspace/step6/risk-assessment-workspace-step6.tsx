@@ -30,6 +30,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RecalculationRequiredBadge } from "@/components/rbi/recalculation-required-badge";
 import {
   CODE_CONSTRAINT_CHECKS,
   COF_DRIVERS,
@@ -461,7 +462,7 @@ function RiskResultDetailWizard() {
 }
 
 export function RiskAssessmentWorkspaceStep6({ onAction }: { onAction: (message: string) => void }) {
-  const { state: rbiState } = useRbiData();
+  const { state: rbiState, activeAssessment, recalculateActiveAssessment } = useRbiData();
   const kpis = RISK_DETERMINATION_KPIS.map((kpi) => {
     if (kpi.label === "PoF Category") return { ...kpi, value: String(rbiState.pof.category) };
     if (kpi.label === "Numeric PoF") return { ...kpi, value: rbiState.pof.numeric };
@@ -476,6 +477,28 @@ export function RiskAssessmentWorkspaceStep6({ onAction }: { onAction: (message:
 
   return (
     <div className="min-w-0 space-y-4">
+      {activeAssessment.calculationTrace?.recalculationRequired ? (
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+          <div className="min-w-0 space-y-1">
+            <RecalculationRequiredBadge trace={activeAssessment.calculationTrace} />
+            <p className="text-xs text-amber-700 dark:text-amber-200">
+              Input data changed after the last calculation{activeAssessment.calculationTrace.staleReason ? `: ${activeAssessment.calculationTrace.staleReason}` : "."}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              onAction("Risk recalculation started.");
+              void recalculateActiveAssessment().then(() => onAction("Risk calculation trace refreshed."));
+            }}
+          >
+            <RotateCw className="h-4 w-4" aria-hidden="true" />
+            Recalculate Risk
+          </Button>
+        </div>
+      ) : null}
+
       <section className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8" aria-label="Risk determination KPI cards">
         {kpis.map((kpi) => (
           <RiskKpiCard key={kpi.label} kpi={kpi} />
@@ -508,7 +531,15 @@ export function RiskAssessmentWorkspaceStep6({ onAction }: { onAction: (message:
           <RiskResultDetailWizard />
           <Card>
             <CardContent className="p-4">
-              <Button type="button" variant="outline" className="w-full" onClick={() => onAction("Risk recalculation is prepared for future development.")}>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  onAction("Risk recalculation started.");
+                  void recalculateActiveAssessment().then(() => onAction("Risk calculation trace refreshed."));
+                }}
+              >
                 <RotateCw className="h-4 w-4" aria-hidden="true" />
                 Recalculate Risk
               </Button>

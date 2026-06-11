@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 
 interface DataQualityGapsProps {
   onAction: (message: string) => void;
+  items?: DataQualityGap[];
 }
 
 const gapStyles: Record<DataQualityGap["color"], string> = {
@@ -18,7 +19,7 @@ const gapStyles: Record<DataQualityGap["color"], string> = {
   blue: "border-blue-100 bg-blue-50 text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200"
 };
 
-export function DataQualityGaps({ onAction }: DataQualityGapsProps) {
+export function DataQualityGaps({ onAction, items = DATA_QUALITY_GAPS }: DataQualityGapsProps) {
   return (
     <Card>
       <CardHeader>
@@ -26,7 +27,7 @@ export function DataQualityGaps({ onAction }: DataQualityGapsProps) {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {DATA_QUALITY_GAPS.map((item) => {
+          {items.map((item) => {
             const Icon = item.icon;
 
             return (

@@ -9,12 +9,17 @@ import {
   calculateRiskAnalytics,
   recalculateAssessment
 } from "@/lib/rbi/rbi-calculations";
+import { aimApi } from "@/lib/api-client";
+import type { AssetApiRecord, CalculationStatusApiRecord } from "@/lib/api-types";
 import { DEFAULT_RBI_STORE_STATE } from "@/lib/rbi/rbi-dummy-data";
 import type {
+  CalculationTrace,
   RbiApprovalStatus,
   RbiAssessment,
   RbiAssessmentStatus,
   RbiAsset,
+  RbiRiskLevel,
+  RbiRiskTargetStatus,
   RbiStoreAction,
   RbiStoreState,
   SharedRbiAssessment
@@ -41,6 +46,7 @@ export type {
   RbiAsset,
   RbiComponent,
   RbiCriticality,
+  CalculationTrace,
   RbiProject,
   RbiRecommendation,
   RbiRiskLevel,
@@ -109,7 +115,8 @@ function toSharedAssessment(store: RbiStoreState): SharedRbiAssessment {
     dataCompleteness: assessment.dataCompleteness,
     assessmentStatus: assessment.assessmentStatus,
     supportingDocuments: assessment.documents.map((document) => document.title),
-    technicalNotes: assessment.technicalNotes
+    technicalNotes: assessment.technicalNotes,
+    calculationTrace: assessment.calculationTrace ?? asset.calculationTrace
   };
 }
 
@@ -117,6 +124,142 @@ export const DEFAULT_RBI_ASSESSMENT = toSharedAssessment(DEFAULT_RBI_STORE_STATE
 
 function mergeLegacySharedState(store: RbiStoreState, legacy: Partial<SharedRbiAssessment>) {
   return reduceRbiStore(store, { type: "update-active-shared", patch: legacy });
+}
+
+function toCalculationTrace(status?: CalculationStatusApiRecord): CalculationTrace | undefined {
+  if (!status) return undefined;
+  return {
+    recalculationRequired: status.recalculation_required,
+    staleCount: status.stale_count,
+    latestRunId: status.latest_run_id ?? null,
+    latestCalculationType: status.latest_calculation_type ?? null,
+    latestCompletedAt: status.latest_completed_at ?? null,
+    staleReason: status.stale_reason ?? null
+  };
+}
+
+function coerceRiskLevel(value?: string): RbiRiskLevel {
+  if (value === "Low" || value === "Medium" || value === "High" || value === "Very High" || value === "Extreme") return value;
+  return "Medium";
+}
+
+function coerceRiskTargetStatus(value?: string): RbiRiskTargetStatus {
+  if (value === "Acceptable" || value === "Approaching" || value === "Exceeded") return value;
+  return "Acceptable";
+}
+
+function coerceAssessmentStatus(value?: string): RbiAssessmentStatus {
+  if (value === "Draft" || value === "Under Review" || value === "In Progress" || value === "Approved") return value;
+  return "Draft";
+}
+
+function riskScoreForLevel(level: RbiRiskLevel) {
+  if (level === "Extreme") return 21;
+  if (level === "Very High") return 17;
+  if (level === "High") return 12;
+  if (level === "Medium") return 7;
+  return 3;
+}
+
+function categoryForRisk(level: RbiRiskLevel): 1 | 2 | 3 | 4 | 5 {
+  if (level === "Extreme") return 5;
+  if (level === "Very High") return 4;
+  if (level === "High") return 3;
+  if (level === "Medium") return 2;
+  return 1;
+}
+
+function mapApiAssetToRbiAsset(asset: AssetApiRecord, fallback: RbiAsset): RbiAsset {
+  const readiness = Number(asset.reliability_data_readiness ?? fallback.reliabilityDataReadiness);
+  const riskLevel = coerceRiskLevel(asset.current_risk_level);
+  return {
+    ...fallback,
+    id: asset.id,
+    tagNumber: asset.tag_number,
+    assetName: asset.asset_name,
+    equipmentType: asset.equipment_type,
+    iso14224Class: asset.equipment_class,
+    taxonomyLevel: asset.taxonomy_level,
+    site: asset.site,
+    area: asset.area,
+    unit: asset.unit,
+    system: asset.system,
+    service: asset.service,
+    currentRiskLevel: riskLevel,
+    assetCriticality: asset.asset_criticality === "A" || asset.asset_criticality === "C" ? asset.asset_criticality : "B",
+    boundaryStatus: asset.boundary_status === "Safety-Critical" ? "Safety-Critical" : "Defined",
+    reliabilityDataReadiness: readiness,
+    nextInspectionDue: asset.next_inspection_due,
+    certificationStatus: asset.certification_status === "Expiring Soon" || asset.certification_status === "Expired" || asset.certification_status === "Not Required" ? asset.certification_status : "Valid",
+    dataQualityProfile: {
+      ...fallback.dataQualityProfile,
+      completeness: readiness
+    },
+    calculationTrace: toCalculationTrace(asset.calculation_status)
+  };
+}
+
+function mapApiAssetToAssessment(asset: AssetApiRecord, store: RbiStoreState, fallback: RbiAssessment): RbiAssessment {
+  const existing = store.assessments.find((assessment) => assessment.assetId === asset.id || assessment.assetId === asset.tag_number);
+  const template = existing ?? fallback;
+  const riskLevel = coerceRiskLevel(asset.current_risk_level);
+  const riskCategory = categoryForRisk(riskLevel);
+  const readiness = Number(asset.reliability_data_readiness ?? template.dataCompleteness);
+
+  return {
+    ...template,
+    assessmentId: existing?.assessmentId ?? (asset.tag_number === "V-101" ? template.assessmentId : `RBI-${asset.tag_number}-LIVE`),
+    assetId: asset.id,
+    assessmentStatus: coerceAssessmentStatus(asset.assessment_status),
+    dataCompleteness: readiness,
+    pof: {
+      ...template.pof,
+      category: riskCategory === 5 ? 4 : riskCategory,
+      numeric: riskLevel === "Extreme" ? "8.90E-04" : riskLevel === "High" ? "3.06E-04" : template.pof.numeric,
+      numericValue: riskLevel === "Extreme" ? 8.9e-4 : riskLevel === "High" ? 3.06e-4 : template.pof.numericValue
+    },
+    cof: {
+      ...template.cof,
+      category: riskCategory === 1 ? 2 : riskCategory,
+      areaConsequence: riskLevel === "Extreme" ? "22,000 ft2" : riskLevel === "High" ? "12,500 ft2" : template.cof.areaConsequence,
+      areaConsequenceValue: riskLevel === "Extreme" ? 22000 : riskLevel === "High" ? 12500 : template.cof.areaConsequenceValue
+    },
+    riskDetermination: {
+      ...template.riskDetermination,
+      level: riskLevel,
+      score: riskScoreForLevel(riskLevel),
+      ranking: riskLevel === "Extreme" ? "A1" : riskLevel === "High" ? "A2" : riskLevel === "Medium" ? "B2" : "C1",
+      targetStatus: coerceRiskTargetStatus(asset.risk_target_status),
+      acceptability: coerceRiskTargetStatus(asset.risk_target_status) === "Exceeded" ? "Not Acceptable" : "Acceptable"
+    },
+    recommendation: {
+      ...template.recommendation,
+      inspectionDate: asset.recommended_inspection_date ?? asset.next_inspection_due ?? template.recommendation.inspectionDate,
+      priority: riskLevel === "Extreme" ? "Extreme" : riskLevel === "High" ? "High" : riskLevel === "Medium" ? "Medium" : "Low",
+      residualRiskLevel: riskLevel === "Extreme" || riskLevel === "High" ? "Medium" : "Low"
+    },
+    revalidationDueDate: asset.revalidation_due_date ?? template.revalidationDueDate,
+    calculationTrace: toCalculationTrace(asset.calculation_status)
+  };
+}
+
+function buildBackendSyncedStore(apiAssets: AssetApiRecord[], localStore: RbiStoreState): RbiStoreState {
+  const defaults = cloneDefaultState();
+  const fallbackAsset = defaults.assets[0];
+  const fallbackAssessment = defaults.assessments[0];
+  const assets = apiAssets.map((asset) => mapApiAssetToRbiAsset(asset, localStore.assets.find((item) => item.id === asset.id || item.tagNumber === asset.tag_number) ?? fallbackAsset));
+  const assessments = apiAssets.map((asset) => mapApiAssetToAssessment(asset, localStore, localStore.assessments.find((assessment) => assessment.assetId === asset.id || assessment.assetId === asset.tag_number) ?? fallbackAssessment));
+  const activeAssessmentId = assessments.some((assessment) => assessment.assessmentId === localStore.activeAssessmentId)
+    ? localStore.activeAssessmentId
+    : assessments[0]?.assessmentId ?? localStore.activeAssessmentId;
+
+  return {
+    ...localStore,
+    assets,
+    assessments,
+    activeAssessmentId,
+    lastUpdated: "Synced from AIM backend"
+  };
 }
 
 function readStoredState() {
@@ -285,6 +428,10 @@ interface RbiDataContextValue {
   recalculateRisk: () => void;
   generateInspectionPlan: () => void;
   resetPrototypeData: () => void;
+  dataSource: "local" | "backend" | "fallback" | "loading";
+  syncMessage: string;
+  recalculateActiveAssessment: () => Promise<void>;
+  recalculateAssessmentById: (assessmentId: string) => Promise<void>;
 }
 
 const RbiDataContext = createContext<RbiDataContextValue | null>(null);
@@ -292,11 +439,43 @@ const RbiDataContext = createContext<RbiDataContextValue | null>(null);
 export function RbiDataProvider({ children }: { children: ReactNode }) {
   const [store, dispatch] = useReducer(reduceRbiStore, DEFAULT_RBI_STORE_STATE);
   const [hydrated, setHydrated] = useState(false);
+  const [dataSource, setDataSource] = useState<"local" | "backend" | "fallback" | "loading">("loading");
+  const [syncMessage, setSyncMessage] = useState("Preparing RBI data.");
 
   useEffect(() => {
     dispatch({ type: "load", state: readStoredState() });
     setHydrated(true);
+    setDataSource("local");
+    setSyncMessage("Using local prototype data while checking backend.");
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    let mounted = true;
+
+    aimApi
+      .listAssets()
+      .then((response) => {
+        if (!mounted) return;
+        if (response.items.length === 0) {
+          setDataSource("fallback");
+          setSyncMessage("Backend connected, but no asset data was returned. Using local prototype data.");
+          return;
+        }
+        dispatch({ type: "load", state: buildBackendSyncedStore(response.items, readStoredState()) });
+        setDataSource("backend");
+        setSyncMessage("RBI data synced from AIM backend.");
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setDataSource("fallback");
+        setSyncMessage("Backend unavailable. Using local prototype data.");
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [hydrated]);
 
   useEffect(() => {
     if (!hydrated || !canUseStorage()) return;
@@ -327,9 +506,54 @@ export function RbiDataProvider({ children }: { children: ReactNode }) {
       setApprovalStatus: (status) => dispatch({ type: "set-approval-status", status }),
       recalculateRisk: () => dispatch({ type: "recalculate-risk" }),
       generateInspectionPlan: () => dispatch({ type: "generate-inspection-plan" }),
-      resetPrototypeData: () => dispatch({ type: "reset" })
+      resetPrototypeData: () => dispatch({ type: "reset" }),
+      dataSource,
+      syncMessage,
+      recalculateActiveAssessment: async () => {
+        try {
+          const result = await aimApi.recalculateAsset(activeAsset.id);
+          const trace = toCalculationTrace(result.calculation_status);
+          dispatch({ type: "update-asset", assetId: activeAsset.id, patch: { calculationTrace: trace } });
+          dispatch({ type: "update-assessment", assessmentId: activeAssessment.assessmentId, patch: { calculationTrace: trace } });
+        } catch {
+          dispatch({ type: "recalculate-risk" });
+          dispatch({
+            type: "update-assessment",
+            assessmentId: activeAssessment.assessmentId,
+            patch: {
+              calculationTrace: {
+                recalculationRequired: false,
+                staleCount: 0,
+                latestCalculationType: "local-prototype",
+                latestCompletedAt: new Date().toISOString(),
+                staleReason: null
+              }
+            }
+          });
+        }
+      },
+      recalculateAssessmentById: async (assessmentId) => {
+        const assessment = store.assessments.find((item) => item.assessmentId === assessmentId);
+        const asset = store.assets.find((item) => item.id === assessment?.assetId);
+        if (!assessment || !asset) return;
+        try {
+          const result = await aimApi.recalculateAsset(asset.id);
+          const trace = toCalculationTrace(result.calculation_status);
+          dispatch({ type: "update-asset", assetId: asset.id, patch: { calculationTrace: trace } });
+          dispatch({ type: "update-assessment", assessmentId: assessment.assessmentId, patch: { calculationTrace: trace } });
+        } catch {
+          const trace: CalculationTrace = {
+            recalculationRequired: false,
+            staleCount: 0,
+            latestCalculationType: "local-prototype",
+            latestCompletedAt: new Date().toISOString(),
+            staleReason: null
+          };
+          dispatch({ type: "update-assessment", assessmentId: assessment.assessmentId, patch: { calculationTrace: trace } });
+        }
+      }
     }),
-    [activeAssessment, activeAsset, state, store]
+    [activeAssessment, activeAsset, dataSource, state, store, syncMessage]
   );
 
   return <RbiDataContext.Provider value={value}>{children}</RbiDataContext.Provider>;

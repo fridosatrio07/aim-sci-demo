@@ -4,6 +4,15 @@ export interface ApiListResponse<T> {
   source?: string;
 }
 
+export interface CalculationStatusApiRecord {
+  recalculation_required: boolean;
+  stale_count: number;
+  latest_run_id?: string | null;
+  latest_calculation_type?: string | null;
+  latest_completed_at?: string | null;
+  stale_reason?: string | null;
+}
+
 export interface AssetApiRecord {
   id: string;
   tag_number: string;
@@ -33,6 +42,7 @@ export interface AssetApiRecord {
   risk_target_status?: string;
   recommended_inspection_date?: string;
   revalidation_due_date?: string;
+  calculation_status?: CalculationStatusApiRecord;
 }
 
 export interface ApiHealth {
@@ -46,4 +56,11 @@ export interface CalculationRunResponse {
   run: Record<string, unknown>;
   result: Record<string, unknown>;
   request?: Record<string, unknown>;
+}
+
+export interface RecalculationResponse {
+  runs: Record<string, unknown>[];
+  results: Record<string, unknown>;
+  asset: AssetApiRecord;
+  calculation_status: CalculationStatusApiRecord;
 }

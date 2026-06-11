@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import type { CalculationTrace } from "@/lib/rbi-store";
 import {
   BookOpen,
   ClipboardList,
@@ -58,6 +59,7 @@ export interface RiskRegisterAssessment {
   revalidationOverdue: boolean;
   dataConfidence: ActionStatus;
   assessmentStatus: AssessmentStatus;
+  calculationTrace?: CalculationTrace;
 }
 
 export interface RegisterSummaryItem {

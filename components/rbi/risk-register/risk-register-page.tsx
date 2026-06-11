@@ -28,6 +28,7 @@ import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RecalculationRequiredBadge } from "@/components/rbi/recalculation-required-badge";
 import {
   RISK_REGISTER_FILTERS,
   RISK_REGISTER_QUICK_LINKS,
@@ -254,7 +255,15 @@ function DateWithOverdue({ date, overdue }: { date: string; overdue: boolean }) 
   );
 }
 
-function RiskRegisterTable({ assessments, onAction }: { assessments: RiskRegisterAssessment[]; onAction: (message: string) => void }) {
+function RiskRegisterTable({
+  assessments,
+  onAction,
+  onRecalculate
+}: {
+  assessments: RiskRegisterAssessment[];
+  onAction: (message: string) => void;
+  onRecalculate: (assessmentId: string) => void;
+}) {
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
 
   return (
@@ -358,10 +367,22 @@ function RiskRegisterTable({ assessments, onAction }: { assessments: RiskRegiste
                   <Badge className={actionStatusClass(assessment.dataConfidence)}>{assessment.dataConfidence}</Badge>
                 </td>
                 <td className="px-3 py-3">
-                  <Badge className={assessmentStatusClass(assessment.assessmentStatus)}>{assessment.assessmentStatus}</Badge>
+                  <div className="space-y-1">
+                    <Badge className={assessmentStatusClass(assessment.assessmentStatus)}>{assessment.assessmentStatus}</Badge>
+                    <RecalculationRequiredBadge trace={assessment.calculationTrace} />
+                  </div>
                 </td>
                 <td className="px-3 py-3">
                   <div className="flex items-center gap-1">
+                    {assessment.calculationTrace?.recalculationRequired ? (
+                      <button
+                        type="button"
+                        onClick={() => onRecalculate(assessment.assessmentId)}
+                        className="h-8 rounded border border-amber-200 px-2 text-[11px] font-black text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-950/35"
+                      >
+                        Recalculate
+                      </button>
+                    ) : null}
                     <button type="button" className="flex h-8 w-8 items-center justify-center rounded border border-slate-200 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" aria-label={`View ${assessment.assessmentId}`}>
                       <Eye className="h-4 w-4" aria-hidden="true" />
                     </button>
@@ -561,7 +582,7 @@ function QuickLinksCard() {
 
 export function RiskRegisterPage() {
   const { message, showMessage } = usePrototypeMessage();
-  const { assessments: storeAssessments, assets, registerSummary, riskDistribution } = useRbiData();
+  const { assessments: storeAssessments, assets, registerSummary, riskDistribution, recalculateAssessmentById } = useRbiData();
   const assessments: RiskRegisterAssessment[] = storeAssessments.map((assessment) => {
     const asset = assets.find((item) => item.id === assessment.assetId);
     return {
@@ -582,7 +603,8 @@ export function RiskRegisterPage() {
       revalidationDueDate: assessment.revalidationDueDate,
       revalidationOverdue: calculateInspectionDueStatus(assessment.revalidationDueDate) === "Overdue",
       dataConfidence: assessment.dataConfidence,
-      assessmentStatus: assessment.assessmentStatus
+      assessmentStatus: assessment.assessmentStatus,
+      calculationTrace: assessment.calculationTrace ?? asset?.calculationTrace
     };
   });
   const summaryItems: RegisterSummaryItem[] = [
@@ -607,7 +629,14 @@ export function RiskRegisterPage() {
 
       <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0">
-          <RiskRegisterTable assessments={assessments} onAction={showMessage} />
+          <RiskRegisterTable
+            assessments={assessments}
+            onAction={showMessage}
+            onRecalculate={(assessmentId) => {
+              showMessage("Recalculation started from Risk Register.");
+              void recalculateAssessmentById(assessmentId).then(() => showMessage("Calculation trace refreshed."));
+            }}
+          />
         </div>
         <aside className="grid min-w-0 gap-4 md:grid-cols-2 2xl:grid-cols-1" aria-label="Risk register summary cards">
           <RegisterSummaryCard items={summaryItems} />

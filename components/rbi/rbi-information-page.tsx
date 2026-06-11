@@ -2,16 +2,19 @@
 
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
 import { MethodologyShortcuts } from "@/components/rbi/methodology-shortcuts";
+import { RecalculationRequiredBadge } from "@/components/rbi/recalculation-required-badge";
 import { RbiActivitySummary } from "@/components/rbi/rbi-activity-summary";
 import { RbiKpiCard } from "@/components/rbi/rbi-kpi-card";
 import { RbiQuickAccessCard } from "@/components/rbi/rbi-quick-access-card";
 import { RbiRiskProfileCard } from "@/components/rbi/rbi-risk-profile-card";
 import { RecentRbiAssessmentsTable } from "@/components/rbi/recent-rbi-assessments-table";
+import { Badge } from "@/components/ui/badge";
 import { RBI_KPI_CARDS, RBI_QUICK_ACCESS_CARDS } from "@/lib/rbi-information-data";
 import { useRbiData } from "@/lib/rbi-store";
 
 export function RbiInformationPage() {
-  const { informationSummary } = useRbiData();
+  const { informationSummary, assessments, dataSource, syncMessage } = useRbiData();
+  const staleAssessments = assessments.filter((assessment) => assessment.calculationTrace?.recalculationRequired);
   const kpiCards = RBI_KPI_CARDS.map((item) => {
     if (item.title === "Total Assessed Assets") return { ...item, value: informationSummary.totalAssessedAssets.toLocaleString("en-US"), trend: `${informationSummary.totalAssets} assets in portfolio` };
     if (item.title === "High Risk Assets") return { ...item, value: informationSummary.highRiskAssets.toLocaleString("en-US"), trend: "Live from assessment register" };
@@ -38,6 +41,19 @@ export function RbiInformationPage() {
           RBI Information
         </h1>
       </section>
+
+      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+        <Badge className={dataSource === "backend" ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900/60 dark:bg-green-950/35 dark:text-green-200" : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-200"}>
+          {dataSource === "backend" ? "Backend synchronized" : "Prototype fallback"}
+        </Badge>
+        <span className="text-slate-500 dark:text-slate-400">{syncMessage}</span>
+        {staleAssessments.length ? (
+          <span className="inline-flex items-center gap-2">
+            <RecalculationRequiredBadge trace={staleAssessments[0].calculationTrace} />
+            <span>{staleAssessments.length} assessment(s) need recalculation.</span>
+          </span>
+        ) : null}
+      </div>
 
       <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6" aria-label="RBI KPI summary">
         {kpiCards.map((item) => (

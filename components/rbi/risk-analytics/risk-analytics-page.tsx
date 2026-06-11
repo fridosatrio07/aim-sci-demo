@@ -23,6 +23,7 @@ import {
 import { ArrowDownRight, ArrowUpRight, CalendarDays } from "lucide-react";
 
 import { PageBreadcrumb } from "@/components/layout/page-breadcrumb";
+import { RecalculationRequiredBadge } from "@/components/rbi/recalculation-required-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -609,7 +610,8 @@ function InspectionEffectivenessDistribution() {
 }
 
 export function RiskAnalyticsPage() {
-  const { state: rbiState, assessments, assets, analyticsSummary, riskDistribution } = useRbiData();
+  const { state: rbiState, assessments, assets, analyticsSummary, riskDistribution, dataSource, syncMessage } = useRbiData();
+  const staleAssessments = assessments.filter((assessment) => assessment.calculationTrace?.recalculationRequired);
   const highRiskAssets: HighRiskAsset[] = assessments
     .filter((assessment) => ["High", "Very High", "Extreme"].includes(assessment.riskDetermination.level))
     .sort((a, b) => b.riskDetermination.score - a.riskDetermination.score)
@@ -638,6 +640,19 @@ export function RiskAnalyticsPage() {
         <p className="text-sm font-bold uppercase tracking-wide text-blue-700 dark:text-blue-300">Risk-Based Inspection</p>
         <h1 className="text-2xl font-bold leading-tight text-slate-950 sm:text-3xl dark:text-slate-100">Risk Analytics</h1>
       </section>
+
+      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+        <Badge className={dataSource === "backend" ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900/60 dark:bg-green-950/35 dark:text-green-200" : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-200"}>
+          {dataSource === "backend" ? "Backend synchronized" : "Prototype fallback"}
+        </Badge>
+        <span className="text-slate-500 dark:text-slate-400">{syncMessage}</span>
+        {staleAssessments.length ? (
+          <span className="inline-flex items-center gap-2">
+            <RecalculationRequiredBadge trace={staleAssessments[0].calculationTrace} />
+            <span>{staleAssessments.length} assessment(s) need recalculation before risk analytics are final.</span>
+          </span>
+        ) : null}
+      </div>
 
       <RbiFilterBar />
       <RiskAnalyticsKpiGrid activeRiskLevel={rbiState.risk.level} summary={analyticsSummary} />

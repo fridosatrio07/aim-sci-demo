@@ -5,9 +5,9 @@ import { CheckCircle2, Eye, MoreVertical, ShieldAlert } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RecalculationRequiredBadge } from "@/components/rbi/recalculation-required-badge";
 import {
   RBI_RISK_LEGEND,
-  type RecentRbiAssessment,
   type RbiAssessmentStatus,
   type RbiTargetStatus
 } from "@/lib/rbi-information-data";
@@ -42,7 +42,7 @@ function assessmentStatusClass(status: RbiAssessmentStatus) {
 
 export function RecentRbiAssessmentsTable() {
   const { assessments: storeAssessments, assets } = useRbiData();
-  const assessments: RecentRbiAssessment[] = storeAssessments.slice(0, 8).map((assessment) => {
+  const assessments = storeAssessments.slice(0, 8).map((assessment) => {
     const asset = assets.find((item) => item.id === assessment.assetId);
     return {
       assessmentId: assessment.assessmentId,
@@ -52,8 +52,9 @@ export function RecentRbiAssessmentsTable() {
       pof: assessment.pof.numeric,
       cof: assessment.cof.areaConsequence.replace(" ft2", "").replace(" ft²", ""),
       riskLevel: assessment.riskDetermination.level === "Low" ? "Medium" : assessment.riskDetermination.level === "Very High" || assessment.riskDetermination.level === "Extreme" ? "High" : assessment.riskDetermination.level,
-      targetStatus: assessment.riskDetermination.targetStatus === "Exceeded" ? "Exceeded" : "Acceptable",
-      assessmentStatus: assessment.assessmentStatus
+      targetStatus: (assessment.riskDetermination.targetStatus === "Exceeded" ? "Exceeded" : "Acceptable") as RbiTargetStatus,
+      assessmentStatus: assessment.assessmentStatus,
+      calculationTrace: assessment.calculationTrace ?? asset?.calculationTrace
     };
   });
 
@@ -101,9 +102,12 @@ export function RecentRbiAssessmentsTable() {
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
-                    <span className={cn("inline-flex rounded-md border px-2 py-1 text-[11px] font-bold leading-4", assessmentStatusClass(assessment.assessmentStatus))}>
-                      {assessment.assessmentStatus}
-                    </span>
+                    <div className="space-y-1">
+                      <span className={cn("inline-flex rounded-md border px-2 py-1 text-[11px] font-bold leading-4", assessmentStatusClass(assessment.assessmentStatus))}>
+                        {assessment.assessmentStatus}
+                      </span>
+                      <RecalculationRequiredBadge trace={assessment.calculationTrace} />
+                    </div>
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
                     <div className="flex justify-end gap-1">

@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import type { CalculationTrace } from "@/lib/rbi-store";
 import {
   AlertTriangle,
   Boxes,
@@ -65,6 +66,7 @@ export interface AssetRegistryRow {
   equipmentType: string;
   documentKeywords: string[];
   failureRecordKeywords: string[];
+  calculationTrace?: CalculationTrace;
 }
 
 export interface RegistryQualityInsight {

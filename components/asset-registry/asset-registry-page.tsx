@@ -12,7 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   ASSET_REGISTRY_KPIS,
   ASSET_REGISTRY_ROWS,
+  DATA_QUALITY_GAPS,
   DEFAULT_ASSET_REGISTRY_FILTERS,
+  REGISTRY_QUALITY_INSIGHTS,
   type AssetRegistryFilterState,
   type AssetRegistryRow
 } from "@/lib/asset-registry-data";
@@ -98,6 +100,18 @@ function coerceCertification(value: string): AssetRegistryRow["certificationStat
   return "Valid";
 }
 
+function mapCalculationTrace(asset: AssetApiRecord): AssetRegistryRow["calculationTrace"] {
+  if (!asset.calculation_status) return undefined;
+  return {
+    recalculationRequired: asset.calculation_status.recalculation_required,
+    staleCount: asset.calculation_status.stale_count,
+    latestRunId: asset.calculation_status.latest_run_id,
+    latestCalculationType: asset.calculation_status.latest_calculation_type,
+    latestCompletedAt: asset.calculation_status.latest_completed_at,
+    staleReason: asset.calculation_status.stale_reason
+  };
+}
+
 function mapApiAssetToRegistryRow(asset: AssetApiRecord): AssetRegistryRow {
   return {
     tagNumber: asset.tag_number,
@@ -122,7 +136,8 @@ function mapApiAssetToRegistryRow(asset: AssetApiRecord): AssetRegistryRow {
     certificationStatus: coerceCertification(asset.certification_status),
     equipmentType: asset.equipment_type,
     documentKeywords: asset.document_keywords ?? [],
-    failureRecordKeywords: asset.failure_record_keywords ?? []
+    failureRecordKeywords: asset.failure_record_keywords ?? [],
+    calculationTrace: mapCalculationTrace(asset)
   };
 }
 
@@ -135,7 +150,7 @@ export function AssetRegistryPage() {
   useEffect(() => {
     let mounted = true;
 
-    aimApi
+    void aimApi
       .listAssets()
       .then((response) => {
         if (!mounted) return;
@@ -155,6 +170,16 @@ export function AssetRegistryPage() {
     };
   }, []);
 
+  async function refreshBackendRows() {
+    try {
+      const response = await aimApi.listAssets();
+      setBackendRows(response.items.map(mapApiAssetToRegistryRow));
+      setBackendStatus("connected");
+    } catch {
+      setBackendStatus("fallback");
+    }
+  }
+
   function showToast(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2600);
@@ -163,6 +188,54 @@ export function AssetRegistryPage() {
   const rows = backendRows ?? ASSET_REGISTRY_ROWS;
   const filteredRows = useMemo(() => rows.filter((row) => matchesFilter(row, filters)), [filters, rows]);
   const activeFilters = hasActiveFilters(filters);
+  const dynamicKpis = useMemo(() => {
+    const total = rows.length || ASSET_REGISTRY_ROWS.length;
+    const isoMapped = rows.filter((row) => row.equipmentClass && row.equipmentClass !== "Unmapped").length;
+    const boundaryDefined = rows.filter((row) => row.boundaryStatus === "Defined" || row.boundaryStatus === "Safety-Critical").length;
+    const safetyCritical = rows.filter((row) => row.safetyCritical || row.boundaryStatus === "Safety-Critical").length;
+    const failureRecords = rows.filter((row) => row.failureRecordKeywords.length > 0).length;
+    const readiness = Math.round(rows.reduce((sum, row) => sum + row.reliabilityDataReadiness, 0) / Math.max(1, rows.length));
+    const values: Record<string, { value: string; detail: string }> = {
+      "Total Assets": { value: total.toLocaleString("en-US"), detail: "assets from synchronized registry" },
+      "ISO 14224 Mapped Assets": { value: isoMapped.toLocaleString("en-US"), detail: `${Math.round((isoMapped / Math.max(1, total)) * 100)}% mapped` },
+      "Boundary Defined": { value: boundaryDefined.toLocaleString("en-US"), detail: `${Math.round((boundaryDefined / Math.max(1, total)) * 100)}% of assets` },
+      "Safety-Critical Assets": { value: safetyCritical.toLocaleString("en-US"), detail: `${Math.round((safetyCritical / Math.max(1, total)) * 100)}% of assets` },
+      "Assets with Open Failure Records": { value: failureRecords.toLocaleString("en-US"), detail: `${Math.round((failureRecords / Math.max(1, total)) * 1000) / 10}% of assets` },
+      "Reliability Data Ready": { value: `${readiness}%`, detail: "average readiness" }
+    };
+
+    return ASSET_REGISTRY_KPIS.map((item) => ({ ...item, ...(values[item.title] ?? {}) }));
+  }, [rows]);
+  const registryQualityInsights = useMemo(() => {
+    const total = Math.max(1, rows.length);
+    const complete = rows.filter((row) => row.reliabilityDataReadiness >= 90 && row.boundaryStatus !== "Safety-Critical").length;
+    const good = rows.filter((row) => row.reliabilityDataReadiness >= 75 && row.reliabilityDataReadiness < 90).length;
+    const needsAttention = rows.filter((row) => row.reliabilityDataReadiness >= 60 && row.reliabilityDataReadiness < 75).length;
+    const poor = Math.max(0, rows.length - complete - good - needsAttention);
+    const values = [complete, good, needsAttention, poor];
+    return REGISTRY_QUALITY_INSIGHTS.map((item, index) => ({
+      ...item,
+      value: values[index] ?? item.value,
+      percentage: Math.round(((values[index] ?? item.value) / total) * 100)
+    }));
+  }, [rows]);
+  const dataQualityGaps = useMemo(() => {
+    const total = Math.max(1, rows.length);
+    const gapValues = [
+      rows.filter((row) => row.boundaryStatus !== "Defined" && row.boundaryStatus !== "Safety-Critical").length,
+      rows.filter((row) => !row.equipmentClass || row.equipmentClass === "Unmapped").length,
+      rows.filter((row) => row.failureRecordKeywords.length === 0).length,
+      rows.filter((row) => row.safetyCritical && row.linkedSafetyFunctions === "-").length
+    ];
+    return DATA_QUALITY_GAPS.map((item, index) => {
+      const count = gapValues[index] ?? 0;
+      return {
+        ...item,
+        count: `${count.toLocaleString("en-US")} assets`,
+        percentage: `${Math.round((count / total) * 100)}%`
+      };
+    });
+  }, [rows]);
 
   return (
     <div className="w-full min-w-0 max-w-full overflow-hidden">
@@ -192,7 +265,7 @@ export function AssetRegistryPage() {
         </div>
 
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-          {ASSET_REGISTRY_KPIS.map((item) => (
+          {dynamicKpis.map((item) => (
             <AssetRegistryKpiCard key={item.title} item={item} />
           ))}
         </div>
@@ -209,11 +282,25 @@ export function AssetRegistryPage() {
 
         <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_320px]">
           <div className="min-w-0">
-            <AssetRegistryTable rows={filteredRows} filtered={activeFilters} totalCount={filteredRows.length} />
+            <AssetRegistryTable
+              rows={filteredRows}
+              filtered={activeFilters}
+              totalCount={filteredRows.length}
+              onRecalculate={async (tagNumber) => {
+                showToast(`Recalculating ${tagNumber}...`);
+                try {
+                  await aimApi.recalculateAsset(tagNumber);
+                  await refreshBackendRows();
+                  showToast(`${tagNumber} recalculated. Calculation trace is current.`);
+                } catch {
+                  showToast("Backend recalculation is unavailable. Please retry when the API is online.");
+                }
+              }}
+            />
           </div>
           <aside className="min-w-0 space-y-4">
-            <RegistryQualityInsights />
-            <DataQualityGaps onAction={showToast} />
+            <RegistryQualityInsights data={registryQualityInsights} total={rows.length} />
+            <DataQualityGaps items={dataQualityGaps} onAction={showToast} />
           </aside>
         </div>
 
