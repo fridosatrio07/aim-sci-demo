@@ -77,7 +77,7 @@ function Toast({ message }: { message: string }) {
 }
 
 function coerceRiskLevel(value: string): AssetRegistryRow["currentRiskLevel"] {
-  if (value === "Extreme" || value === "High" || value === "Medium" || value === "Low") return value;
+  if (value === "Extreme" || value === "Very High" || value === "High" || value === "Medium" || value === "Low") return value;
   return "Medium";
 }
 
@@ -256,11 +256,11 @@ export function AssetRegistryPage() {
             </Badge>
           ) : (
             <Badge className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-200">
-              Offline fallback data
+              Offline Prototype Mode
             </Badge>
           )}
           <span className="text-slate-500 dark:text-slate-400">
-            The registry uses the backend when available and falls back to bundled demo data for static review.
+            The registry uses the backend when available. Offline Prototype Mode is fallback-only for static review.
           </span>
         </div>
 

@@ -27,6 +27,7 @@ interface AssetRegistryTableProps {
 
 function riskClass(risk: AssetRegistryRow["currentRiskLevel"]) {
   if (risk === "Extreme") return "border-red-300 bg-red-600 text-white dark:border-red-500 dark:bg-red-600";
+  if (risk === "Very High") return "border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/35 dark:text-red-200";
   if (risk === "High") return "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900/60 dark:bg-orange-950/35 dark:text-orange-200";
   if (risk === "Medium") return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-200";
   return "border-green-200 bg-green-50 text-green-700 dark:border-green-900/60 dark:bg-green-950/35 dark:text-green-200";

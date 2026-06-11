@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Award,
@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { aimApi } from "@/lib/api-client";
 import {
   GENERATED_REPORT_HISTORY,
   REPORT_FORM_OPTIONS,
@@ -356,6 +357,24 @@ function ReportHistoryTable({ rows }: { rows: ReportHistoryItem[] }) {
 export function ReportsPageContent() {
   const [selectedType, setSelectedType] = useState("");
   const [history, setHistory] = useState<ReportHistoryItem[]>(GENERATED_REPORT_HISTORY);
+  const [dataMode, setDataMode] = useState<"loading" | "backend" | "offline">("loading");
+
+  useEffect(() => {
+    let mounted = true;
+    void aimApi
+      .reportHistory()
+      .then((response) => {
+        if (!mounted) return;
+        setHistory(response.items);
+        setDataMode("backend");
+      })
+      .catch(() => {
+        if (mounted) setDataMode("offline");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   function handleGenerated(item: ReportHistoryItem) {
     setHistory((current) => [item, ...current]);
@@ -369,6 +388,13 @@ export function ReportsPageContent() {
           Generate and export reports for asset integrity, inspection, RBI and compliance.
         </p>
       </section>
+
+      <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+        <Badge className={dataMode === "backend" ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900/60 dark:bg-green-950/35 dark:text-green-200" : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-200"}>
+          {dataMode === "backend" ? "Backend API" : dataMode === "loading" ? "Checking backend" : "Offline Prototype Mode"}
+        </Badge>
+        <span>{dataMode === "offline" ? "Backend is unavailable; report history is fallback-only legacy data." : "Report history is synchronized from backend documents and report records."}</span>
+      </div>
 
       <section className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_440px]">
         <Card>

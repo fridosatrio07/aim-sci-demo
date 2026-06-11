@@ -446,7 +446,7 @@ export function RbiDataProvider({ children }: { children: ReactNode }) {
     dispatch({ type: "load", state: readStoredState() });
     setHydrated(true);
     setDataSource("local");
-    setSyncMessage("Using local prototype data while checking backend.");
+    setSyncMessage("Offline Prototype Mode while checking backend.");
   }, []);
 
   useEffect(() => {
@@ -459,7 +459,7 @@ export function RbiDataProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
         if (response.items.length === 0) {
           setDataSource("fallback");
-          setSyncMessage("Backend connected, but no asset data was returned. Using local prototype data.");
+          setSyncMessage("Backend connected, but no asset data was returned. Offline Prototype Mode is active.");
           return;
         }
         dispatch({ type: "load", state: buildBackendSyncedStore(response.items, readStoredState()) });
@@ -469,7 +469,7 @@ export function RbiDataProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         if (!mounted) return;
         setDataSource("fallback");
-        setSyncMessage("Backend unavailable. Using local prototype data.");
+        setSyncMessage("Backend unavailable. Offline Prototype Mode is active; recalculation failures will be shown to the user.");
       });
 
     return () => {

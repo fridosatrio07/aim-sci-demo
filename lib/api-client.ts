@@ -4,6 +4,8 @@ import type {
   AssetApiRecord,
   CalculationRunResponse,
   CalculationStatusApiRecord,
+  DashboardSummaryApiRecord,
+  ReportHistoryApiRecord,
   RecalculationResponse
 } from "@/lib/api-types";
 
@@ -89,6 +91,18 @@ export const aimApi = {
       body: "{}"
     });
   },
+  runWeibull(assetId: string) {
+    return requestJson<CalculationRunResponse>(`/calculations/weibull/${encodeURIComponent(assetId)}`, { method: "POST", body: "{}" });
+  },
+  runMonteCarlo(assetId: string) {
+    return requestJson<CalculationRunResponse>(`/calculations/monte-carlo/${encodeURIComponent(assetId)}`, { method: "POST", body: "{}" });
+  },
+  runDegradation(assetId: string) {
+    return requestJson<CalculationRunResponse>(`/calculations/degradation/${encodeURIComponent(assetId)}`, { method: "POST", body: "{}" });
+  },
+  runAnomalyDetection(assetId: string) {
+    return requestJson<CalculationRunResponse>(`/calculations/anomaly-detection/${encodeURIComponent(assetId)}`, { method: "POST", body: "{}" });
+  },
   calculationStatus(assetId: string) {
     return requestJson<CalculationStatusApiRecord>(`/assets/${encodeURIComponent(assetId)}/calculation-status`);
   },
@@ -111,10 +125,58 @@ export const aimApi = {
       body: JSON.stringify(payload)
     });
   },
+  listDocuments() {
+    return requestJson<ApiListResponse<Record<string, unknown>>>("/documents");
+  },
+  getDocument(documentId: string) {
+    return requestJson<Record<string, unknown>>(`/documents/${encodeURIComponent(documentId)}`);
+  },
+  extractDocument(documentId: string) {
+    return requestJson<Record<string, unknown>>(`/documents/${encodeURIComponent(documentId)}/extract`, { method: "POST", body: "{}" });
+  },
+  listInspectionHistory(assetId: string) {
+    return requestJson<ApiListResponse<Record<string, unknown>>>(`/assets/${encodeURIComponent(assetId)}/inspection-history`);
+  },
+  createInspectionRecord(assetId: string, payload: Record<string, unknown>) {
+    return requestJson<Record<string, unknown>>(`/assets/${encodeURIComponent(assetId)}/inspection-records`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  listThicknessMeasurements(assetId: string) {
+    return requestJson<ApiListResponse<Record<string, unknown>>>(`/assets/${encodeURIComponent(assetId)}/thickness-measurements`);
+  },
+  createThicknessMeasurement(assetId: string, payload: Record<string, unknown>) {
+    return requestJson<Record<string, unknown>>(`/assets/${encodeURIComponent(assetId)}/thickness-measurements`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+  listFailureEvents(assetId: string) {
+    return requestJson<ApiListResponse<Record<string, unknown>>>(`/assets/${encodeURIComponent(assetId)}/failure-events`);
+  },
+  createFailureEvent(assetId: string, payload: Record<string, unknown>) {
+    return requestJson<Record<string, unknown>>(`/assets/${encodeURIComponent(assetId)}/failure-events`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
   riskRegister() {
     return requestJson<ApiListResponse<Record<string, unknown>>>("/risk-register");
   },
+  inspectionPlan() {
+    return requestJson<ApiListResponse<Record<string, unknown>>>("/inspection-plan");
+  },
+  reportHistory() {
+    return requestJson<ApiListResponse<ReportHistoryApiRecord>>("/reports/history");
+  },
+  assetSummaryReport(assetId: string) {
+    return requestJson<Record<string, unknown>>(`/reports/asset-summary/${encodeURIComponent(assetId)}`);
+  },
+  portfolioSummaryReport() {
+    return requestJson<Record<string, unknown>>("/reports/portfolio-summary");
+  },
   dashboardSummary() {
-    return requestJson<Record<string, unknown>>("/dashboard/summary");
+    return requestJson<DashboardSummaryApiRecord>("/dashboard/summary");
   }
 };

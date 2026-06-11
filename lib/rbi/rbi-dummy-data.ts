@@ -1,3 +1,7 @@
+/**
+ * Fallback-only legacy mock data.
+ * Runtime RBI state is hydrated from backend assets/RBI assessments when the API is reachable.
+ */
 import {
   calculateRiskLevel,
   calculateRiskRanking,
@@ -25,7 +29,7 @@ import type {
   SupportingDocument
 } from "@/lib/rbi/rbi-types";
 
-const SITE = "Geothermal Dieng Unit 1";
+const SITE = "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility";
 
 type AssetSeed = {
   tagNumber: string;

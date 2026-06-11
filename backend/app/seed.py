@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Any
 
 from app.repository import AimRepository, REQUIRED_COLLECTIONS, utc_now
+
+CANONICAL_FACILITY_NAME = "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility"
+CANONICAL_FACILITY_ID = "spm-01-demo-facility"
 
 
 BASE_ASSETS: list[dict[str, Any]] = [
@@ -31,6 +35,8 @@ EQUIPMENT_POOL = [
 def _asset_from_tuple(index: int, item: tuple[Any, ...]) -> dict[str, Any]:
     tag, name, equipment_class, equipment_type, unit, system, service, risk, criticality, readiness = item
     overdue = index < 4
+    due_date = date.today() - timedelta(days=4 + index) if overdue else date.today() + timedelta(days=30 + index * 7)
+    revalidation_date = due_date + timedelta(days=30)
     safety = criticality == "A" or tag.startswith(("PSV", "BDV", "XV"))
     return {
         "id": tag,
@@ -39,7 +45,7 @@ def _asset_from_tuple(index: int, item: tuple[Any, ...]) -> dict[str, Any]:
         "equipment_class": equipment_class,
         "equipment_type": equipment_type,
         "taxonomy_level": "Component / Maintainable Item" if equipment_type == "Instrument" else "Equipment Unit",
-        "site": "Geothermal Dieng Unit 1",
+        "site": CANONICAL_FACILITY_NAME,
         "area": "Protection System" if safety else "Process Area",
         "unit": unit,
         "system": system,
@@ -51,8 +57,9 @@ def _asset_from_tuple(index: int, item: tuple[Any, ...]) -> dict[str, Any]:
         "reliability_data_readiness": readiness,
         "linked_safety_functions": "1 safety function" if safety else "-",
         "safety_critical": safety,
-        "next_inspection_due": "15 May 2025" if overdue else "15 May 2026",
-        "inspection_due_note": "Overdue" if overdue else "12 months",
+        "next_due_date": due_date.isoformat(),
+        "next_inspection_due": due_date.strftime("%d %b %Y"),
+        "inspection_due_note": "Overdue" if overdue else f"{max((due_date - date.today()).days, 0)} days left",
         "inspection_status": "Overdue" if overdue else "Scheduled",
         "certification_status": "Expiring Soon" if tag in {"P-201A", "BDV-101"} else "Valid",
         "document_keywords": ["inspection report", "datasheet", "RBI assessment", tag],
@@ -60,8 +67,8 @@ def _asset_from_tuple(index: int, item: tuple[Any, ...]) -> dict[str, Any]:
         "operating_hours": 42000 + index * 280,
         "assessment_status": "Approved" if index % 4 == 0 else "Under Review" if index % 3 == 0 else "In Progress",
         "risk_target_status": "Exceeded" if risk in {"Extreme", "High"} else "Acceptable",
-        "recommended_inspection_date": "15 May 2026",
-        "revalidation_due_date": "12 May 2026",
+        "recommended_inspection_date": due_date.isoformat(),
+        "revalidation_due_date": revalidation_date.isoformat(),
         "updated_at": utc_now(),
     }
 
@@ -192,7 +199,7 @@ async def seed_demo_facility(repo: AimRepository) -> dict[str, Any]:
             "revision": "1.0",
             "source": "Document Center",
             "status": "approved",
-            "last_updated": "12 May 2025",
+            "last_updated": date.today().isoformat(),
         }
         for asset in assets
     ]
@@ -216,8 +223,8 @@ async def seed_demo_facility(repo: AimRepository) -> dict[str, Any]:
 
     payloads = {
         "users": [{"id": "superadmin", "name": "Budi Santoso", "role": "Superadmin"}],
-        "sites": [{"id": "dieng-unit-1", "name": "Geothermal Dieng Unit 1"}],
-        "areas": [{"id": "process-area", "site_id": "dieng-unit-1", "name": "Process Area"}],
+        "sites": [{"id": CANONICAL_FACILITY_ID, "name": CANONICAL_FACILITY_NAME}],
+        "areas": [{"id": "process-area", "site_id": CANONICAL_FACILITY_ID, "name": "Process Area"}],
         "systems": [{"id": "separator-system", "area_id": "process-area", "name": "Separator System"}],
         "assets": assets,
         "components": components,

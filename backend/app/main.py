@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -26,6 +27,8 @@ from app.schemas import (
     ThicknessMeasurementIn,
 )
 from app.seed import seed_demo_facility
+
+RISK_LEVELS = ["Low", "Medium", "High", "Very High", "Extreme"]
 
 
 app = FastAPI(
@@ -111,6 +114,101 @@ async def _enrich_asset_with_trace(asset: dict[str, Any]) -> dict[str, Any]:
     return {**asset, "calculation_status": await _asset_calculation_status(asset["id"])}
 
 
+def _parse_due_date(value: Any) -> date | None:
+    if not value:
+        return None
+    text = str(value)
+    for pattern in ("%Y-%m-%d", "%d %b %Y", "%d %B %Y"):
+        try:
+            return date.fromisoformat(text) if pattern == "%Y-%m-%d" else datetime.strptime(text, pattern).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _inspection_status_for(due_date: date | None) -> tuple[str, str]:
+    if due_date is None:
+        return "Scheduled", "No due date"
+    days = (due_date - date.today()).days
+    if days < 0:
+        return "Overdue", "Overdue"
+    if days <= 30:
+        return "Due Soon", f"{days} days left"
+    return "Scheduled", f"{days} days left"
+
+
+async def _upsert_rbi_assessment(asset: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    existing = await repo().find_one("rbi_assessments", {"asset_id": asset["id"]})
+    assessment_id = existing.get("assessment_id") if existing else f"RBI-{asset['tag_number']}-LIVE"
+    document = {
+        "id": existing.get("id") if existing else assessment_id,
+        "assessment_id": assessment_id,
+        "asset_id": asset["id"],
+        "asset_tag": asset["tag_number"],
+        "risk_level": result["risk_level"],
+        "risk_target_status": result["risk_target_status"],
+        "assessment_status": asset.get("assessment_status", "In Progress"),
+        "recommended_inspection_date": result["recommended_inspection_date"],
+        "revalidation_due_date": asset.get("revalidation_due_date"),
+        "data_confidence": "Good" if asset.get("reliability_data_readiness", 0) >= 80 else "Medium",
+        "data_completeness": asset.get("reliability_data_readiness", 0),
+        "selected_damage_mechanisms": existing.get("selected_damage_mechanisms", ["General Thinning", "Localized Corrosion", "CO2 Corrosion"]) if existing else ["General Thinning", "Localized Corrosion", "CO2 Corrosion"],
+        "latest_calculation_result": result,
+        "calculation_stale": False,
+        "stale_reason": None,
+        "updated_at": utc_now(),
+    }
+    await repo().upsert_many("rbi_assessments", [document])
+    return document
+
+
+async def _apply_rbi_result(asset: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    due = _parse_due_date(result.get("recommended_inspection_date"))
+    inspection_status, inspection_due_note = _inspection_status_for(due)
+    patch = {
+        "current_risk_level": result["risk_level"],
+        "risk_target_status": result["risk_target_status"],
+        "recommended_inspection_date": result["recommended_inspection_date"],
+        "next_due_date": due.isoformat() if due else asset.get("next_due_date"),
+        "next_inspection_due": due.strftime("%d %b %Y") if due else asset.get("next_inspection_due"),
+        "inspection_status": inspection_status,
+        "inspection_due_note": inspection_due_note,
+    }
+    updated_asset = await repo().update_one("assets", asset["id"], patch) or asset
+    await _upsert_rbi_assessment(updated_asset, result)
+    return updated_asset
+
+
+async def _apply_degradation_result(asset: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+    remaining_years = float(result.get("estimated_remaining_life_years", 1))
+    recommendation_days = max(30, min(365, int(remaining_years * 365 * 0.5)))
+    due = date.today() + timedelta(days=recommendation_days)
+    inspection_status, inspection_due_note = _inspection_status_for(due)
+    patch = {
+        "remaining_life_years": remaining_years,
+        "limiting_component": result.get("limiting_component"),
+        "recommended_inspection_date": due.isoformat(),
+        "next_due_date": due.isoformat(),
+        "next_inspection_due": due.strftime("%d %b %Y"),
+        "inspection_status": inspection_status,
+        "inspection_due_note": inspection_due_note,
+    }
+    updated_asset = await repo().update_one("assets", asset["id"], patch) or asset
+    existing = await repo().find_one("rbi_assessments", {"asset_id": asset["id"]})
+    if existing:
+        await repo().update_one(
+            "rbi_assessments",
+            existing["id"],
+            {
+                "recommended_inspection_date": due.isoformat(),
+                "degradation_result": result,
+                "calculation_stale": False,
+                "stale_reason": None,
+            },
+        )
+    return updated_asset
+
+
 async def _run_recalculation_suite(asset: dict[str, Any]) -> dict[str, Any]:
     inspections, thickness, failures, maintenance = await _calculation_inputs(asset)
     results = {
@@ -122,6 +220,10 @@ async def _run_recalculation_suite(asset: dict[str, Any]) -> dict[str, Any]:
     runs = []
     for kind, result in results.items():
         runs.append(await _record_calculation(kind, asset, result))
+        if kind == "rbi":
+            asset = await _apply_rbi_result(asset, result)
+        if kind == "degradation":
+            asset = await _apply_degradation_result(asset, result)
     await repo().append_audit("asset_recalculated", "asset", asset["id"], {"calculation_types": list(results.keys())})
     return {"runs": runs, "results": results}
 
@@ -186,6 +288,8 @@ async def get_asset(asset_id: str) -> dict[str, Any]:
 
 @app.post("/assets")
 async def create_asset(asset: AssetIn) -> dict[str, Any]:
+    due = date.today() + timedelta(days=365)
+    inspection_status, inspection_due_note = _inspection_status_for(due)
     document = {
         "id": asset.tag_number,
         "tag_number": asset.tag_number,
@@ -205,9 +309,10 @@ async def create_asset(asset: AssetIn) -> dict[str, Any]:
         "reliability_data_readiness": 60,
         "linked_safety_functions": "-",
         "safety_critical": False,
-        "next_inspection_due": "15 May 2026",
-        "inspection_due_note": "12 months",
-        "inspection_status": "Scheduled",
+        "next_due_date": due.isoformat(),
+        "next_inspection_due": due.strftime("%d %b %Y"),
+        "inspection_due_note": inspection_due_note,
+        "inspection_status": inspection_status,
         "certification_status": "Valid",
         "document_keywords": [],
         "failure_record_keywords": [],
@@ -380,7 +485,8 @@ async def calculate_rbi(asset_id: str, request: CalculationRequest | None = None
     _, thickness, failures, _ = await _calculation_inputs(asset)
     result = run_rbi(asset, thickness, failures)
     run = await _record_calculation("rbi", asset, result)
-    return {"run": run, "result": result, "request": request.model_dump() if request else {}}
+    updated_asset = await _apply_rbi_result(asset, result)
+    return {"run": run, "result": result, "asset": await _enrich_asset_with_trace(updated_asset), "request": request.model_dump() if request else {}}
 
 
 @app.post("/calculations/reliability/{asset_id}")
@@ -412,7 +518,9 @@ async def calculate_degradation(asset_id: str) -> dict[str, Any]:
     asset = await _asset_or_404(asset_id)
     _, thickness, _, _ = await _calculation_inputs(asset)
     result = run_degradation(asset, thickness)
-    return {"run": await _record_calculation("degradation", asset, result), "result": result}
+    run = await _record_calculation("degradation", asset, result)
+    updated_asset = await _apply_degradation_result(asset, result)
+    return {"run": run, "result": result, "asset": await _enrich_asset_with_trace(updated_asset)}
 
 
 @app.post("/calculations/anomaly-detection/{asset_id}")
@@ -461,13 +569,30 @@ async def recalculate_asset(asset_id: str) -> dict[str, Any]:
 @app.get("/dashboard/summary")
 async def dashboard_summary() -> dict[str, Any]:
     assets = await repo().list_all("assets")
+    assessments = await repo().list_all("rbi_assessments")
     statuses = [await _asset_calculation_status(item["id"]) for item in assets]
     recalculation_required_assets = sum(1 for status in statuses if status["recalculation_required"])
+    assessed_asset_ids = {item.get("asset_id") for item in assessments if item.get("asset_id")}
+    risk_distribution = [
+        {
+            "label": level,
+            "value": sum(1 for item in assessments if item.get("risk_level") == level),
+        }
+        for level in RISK_LEVELS
+    ]
+    overdue_count = sum(
+        1
+        for item in assets
+        if (due := _parse_due_date(item.get("next_due_date") or item.get("recommended_inspection_date") or item.get("next_inspection_due"))) is not None
+        and due < date.today()
+    )
     return {
         "total_assets": len(assets),
-        "high_risk_assets": sum(1 for item in assets if item.get("current_risk_level") in {"Extreme", "High"}),
-        "overdue_inspections": sum(1 for item in assets if item.get("inspection_status") == "Overdue"),
+        "assessed_assets": len(assessed_asset_ids),
+        "high_risk_assets": sum(1 for item in assets if item.get("current_risk_level") in {"Extreme", "Very High", "High"}),
+        "overdue_inspections": overdue_count,
         "average_data_readiness": round(sum(item.get("reliability_data_readiness", 0) for item in assets) / max(len(assets), 1), 1),
+        "risk_distribution": risk_distribution,
         "recalculation_required_assets": recalculation_required_assets,
         "stale_calculations": sum(status["stale_count"] for status in statuses),
     }
@@ -479,7 +604,7 @@ async def risk_register() -> dict[str, Any]:
     assets = {}
     for asset in await repo().list_all("assets"):
         assets[asset["id"]] = await _enrich_asset_with_trace(asset)
-    items = [{**item, "asset": assets.get(item.get("asset_id"))} for item in assessments]
+    items = [{**item, "asset": assets[item.get("asset_id")]} for item in assessments if item.get("asset_id") in assets]
     return {"items": items, "total": len(items)}
 
 
@@ -491,9 +616,11 @@ async def inspection_plan() -> dict[str, Any]:
             "asset_id": item["id"],
             "tag_number": item["tag_number"],
             "asset_name": item["asset_name"],
+            "next_due_date": item.get("next_due_date") or item.get("recommended_inspection_date"),
             "recommended_inspection_date": item.get("recommended_inspection_date"),
-            "inspection_status": item.get("inspection_status"),
+            "inspection_status": _inspection_status_for(_parse_due_date(item.get("next_due_date") or item.get("recommended_inspection_date")))[0],
             "risk_level": item.get("current_risk_level"),
+            "calculation_status": await _asset_calculation_status(item["id"]),
         }
         for item in assets
     ]
@@ -514,9 +641,45 @@ async def asset_summary_report(asset_id: str) -> dict[str, Any]:
     }
 
 
+@app.get("/reports/history", response_model=ListResponse)
+async def report_history() -> dict[str, Any]:
+    assets = await repo().list_all("assets")
+    documents = await repo().list_all("documents")
+    generated = []
+    for index, document in enumerate(documents[:12]):
+        asset = next((item for item in assets if item["id"] == document.get("asset_id")), None)
+        generated.append(
+            {
+                "reportName": f"{document.get('asset_tag', 'AIM')}_Integrity_Report_{date.today().strftime('%Y%m%d')}.pdf",
+                "reportType": document.get("document_type", "Asset Integrity Summary"),
+                "generatedBy": "AIM Backend",
+                "generatedDate": utc_now(),
+                "format": "PDF",
+                "dateRange": f"{(date.today() - timedelta(days=30)).isoformat()} - {date.today().isoformat()}",
+                "status": "Completed",
+                "fileSize": f"{1.2 + index * 0.08:.2f} MB",
+                "assetTag": asset.get("tag_number") if asset else document.get("asset_tag"),
+            }
+        )
+    return {"items": generated, "total": len(generated)}
+
+
+@app.get("/reports/portfolio-summary")
+async def portfolio_summary_report() -> dict[str, Any]:
+    return {
+        "dashboard": await dashboard_summary(),
+        "risk_register": await risk_register(),
+        "inspection_plan": await inspection_plan(),
+        "generated_at": utc_now(),
+    }
+
+
 async def _mark_asset_calculations_stale(asset_id: str, reason: str) -> None:
     runs = await repo().list_all("calculation_runs")
     for run in runs:
         if run.get("asset_id") == asset_id:
             await repo().update_one("calculation_runs", run["id"], {"stale": True, "stale_reason": reason})
+    assessment = await repo().find_one("rbi_assessments", {"asset_id": asset_id})
+    if assessment:
+        await repo().update_one("rbi_assessments", assessment["id"], {"calculation_stale": True, "stale_reason": reason})
     await repo().append_audit("calculations_marked_stale", "asset", asset_id, {"reason": reason})

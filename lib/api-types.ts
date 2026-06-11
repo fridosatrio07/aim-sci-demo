@@ -32,6 +32,7 @@ export interface AssetApiRecord {
   reliability_data_readiness: number;
   linked_safety_functions: string;
   safety_critical: boolean;
+  next_due_date?: string;
   next_inspection_due: string;
   inspection_due_note: string;
   inspection_status: string;
@@ -42,7 +43,32 @@ export interface AssetApiRecord {
   risk_target_status?: string;
   recommended_inspection_date?: string;
   revalidation_due_date?: string;
+  remaining_life_years?: number;
+  limiting_component?: string;
   calculation_status?: CalculationStatusApiRecord;
+}
+
+export interface ReportHistoryApiRecord {
+  reportName: string;
+  reportType: string;
+  generatedBy: string;
+  generatedDate: string;
+  format: "PDF" | "Excel" | "CSV";
+  dateRange: string;
+  status: "Completed" | "Failed";
+  fileSize: string;
+  assetTag?: string;
+}
+
+export interface DashboardSummaryApiRecord {
+  total_assets: number;
+  assessed_assets: number;
+  high_risk_assets: number;
+  overdue_inspections: number;
+  average_data_readiness: number;
+  risk_distribution: Array<{ label: string; value: number }>;
+  recalculation_required_assets: number;
+  stale_calculations: number;
 }
 
 export interface ApiHealth {

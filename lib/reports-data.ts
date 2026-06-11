@@ -1,3 +1,7 @@
+/**
+ * Fallback-only legacy mock data.
+ * Runtime Reports history should come from backend report/document endpoints when available.
+ */
 export type ReportTemplateIcon =
   | "BarChart3"
   | "ShieldCheck"
@@ -90,7 +94,7 @@ export const REPORT_TEMPLATES: ReportTemplate[] = [
 ];
 
 export const REPORT_FORM_OPTIONS = {
-  sites: ["All Sites", "PLTG Jawa-1 / Unit 1", "Geothermal Dieng Unit 1", "Offshore Platform Alpha", "Refinery Unit Balongan"],
+  sites: ["All Sites", "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility"],
   units: ["All Units", "Process Unit", "Utility", "Reinjection", "Steam System"],
   assetTypes: ["All Asset Types", "Pressure Vessel", "Storage Tank", "Piping", "Pump", "Heat Exchanger"],
   riskLevels: ["All Risk Levels", "Extreme", "High", "Medium", "Low"],

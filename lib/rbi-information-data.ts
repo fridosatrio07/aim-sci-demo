@@ -1,3 +1,7 @@
+/**
+ * Fallback-only legacy mock data.
+ * Runtime RBI Information metrics should come from backend-synchronized RBI store.
+ */
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,

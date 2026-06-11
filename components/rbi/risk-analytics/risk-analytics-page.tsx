@@ -643,7 +643,7 @@ export function RiskAnalyticsPage() {
 
       <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
         <Badge className={dataSource === "backend" ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900/60 dark:bg-green-950/35 dark:text-green-200" : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-200"}>
-          {dataSource === "backend" ? "Backend synchronized" : "Prototype fallback"}
+          {dataSource === "backend" ? "Backend synchronized" : "Offline Prototype Mode"}
         </Badge>
         <span className="text-slate-500 dark:text-slate-400">{syncMessage}</span>
         {staleAssessments.length ? (

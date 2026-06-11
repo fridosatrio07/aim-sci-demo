@@ -1,3 +1,7 @@
+/**
+ * Fallback-only legacy mock data.
+ * Runtime Dashboard data must be derived from backend assets, RBI assessments, and inspection plan endpoints.
+ */
 export type IconName =
   | "Activity"
   | "AlertTriangle"
@@ -176,7 +180,7 @@ export const APP_INFO: AppInfo = {
   company: "PT SUCOFINDO (Persero)",
   title: "ASSET INTEGRITY MANAGEMENT",
   subtitle: "Risk-Based Inspection Platform",
-  projectName: "Geothermal Dieng Unit 1",
+  projectName: "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility",
   standardLabel: "API 580 / API 581 Concepts",
   lastUpdated: "Last updated: 20 May 2025, 10:35 WIB",
   user: {
@@ -202,7 +206,7 @@ export const SIDEBAR_ITEMS: SidebarItem[] = [
 export const SUMMARY_KPIS: SummaryKpi[] = [
   {
     title: "Total Assets",
-    value: "1,253",
+    value: "64",
     icon: "Archive",
     trend: { value: "+4.2%", direction: "up", tone: "positive" },
     iconTone: "blue"
@@ -273,7 +277,7 @@ export const RISK_LEGEND: RiskLegendItem[] = [
   { label: "High", value: 52 },
   { label: "Medium", value: 121 },
   { label: "Low", value: 281 },
-  { label: "Total Assets", value: 1253 }
+  { label: "Total Assets", value: 64 }
 ];
 
 export const INSPECTION_STATUS: DonutChartDataset = {
@@ -529,14 +533,14 @@ export interface ActionPriorityItem {
 
 export const DASHBOARD_PAGE_META = {
   title: "Dashboard",
-  site: "Geothermal Dieng Unit 1",
+  site: "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility",
   lastDataUpdate: "08 May 2025 09:00 WIB"
 };
 
 export const REVISED_DASHBOARD_KPIS: RevisedDashboardKpi[] = [
   {
     title: "Total Assets",
-    value: "1,253",
+    value: "64",
     trend: "+4.2% vs last month",
     tone: "blue",
     icon: "Database"
@@ -580,24 +584,24 @@ export const REVISED_DASHBOARD_KPIS: RevisedDashboardKpi[] = [
 ];
 
 export const REVISED_RISK_CATEGORIES: DashboardMetricRow[] = [
-  { label: "Extreme", value: 8, tone: "red" },
-  { label: "High", value: 52, tone: "orange" },
-  { label: "Medium", value: 121, tone: "yellow" },
-  { label: "Low", value: 281, tone: "green" },
-  { label: "Not Assessed", value: 791, tone: "slate" },
-  { label: "Total Assets", value: "1,253", tone: "blue" }
+  { label: "Extreme", value: 4, tone: "red" },
+  { label: "High", value: 18, tone: "orange" },
+  { label: "Medium", value: 24, tone: "yellow" },
+  { label: "Low", value: 18, tone: "green" },
+  { label: "Not Assessed", value: 0, tone: "slate" },
+  { label: "Total Assets", value: "64", tone: "blue" }
 ];
 
 export const REVISED_RISK_DISTRIBUTION: DonutChartDataset = {
   title: "Risk Distribution",
-  centerLabel: "1,253 Assets",
+  centerLabel: "64 Assets",
   actionLabel: "View Full Risk Register",
   data: [
-    { name: "Low", value: 281, percentage: "22.4%", color: "#16a34a" },
-    { name: "Medium", value: 121, percentage: "9.7%", color: "#eab308" },
-    { name: "High", value: 52, percentage: "4.1%", color: "#f97316" },
-    { name: "Extreme", value: 8, percentage: "0.6%", color: "#dc2626" },
-    { name: "Not Assessed", value: 791, percentage: "63.2%", color: "#cbd5e1" }
+    { name: "Low", value: 18, percentage: "28.1%", color: "#16a34a" },
+    { name: "Medium", value: 24, percentage: "37.5%", color: "#eab308" },
+    { name: "High", value: 18, percentage: "28.1%", color: "#f97316" },
+    { name: "Extreme", value: 4, percentage: "6.3%", color: "#dc2626" },
+    { name: "Not Assessed", value: 0, percentage: "0%", color: "#cbd5e1" }
   ]
 };
 

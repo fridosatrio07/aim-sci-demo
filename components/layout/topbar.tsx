@@ -30,10 +30,7 @@ interface TopbarProps {
 }
 
 const PROJECT_OPTIONS = [
-  "PLTG Jawa-1 / Unit 1",
-  "Geothermal Dieng Unit 1",
-  "Offshore Platform Alpha",
-  "Refinery Unit Balongan"
+  "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility"
 ];
 
 const NOTIFICATIONS = [

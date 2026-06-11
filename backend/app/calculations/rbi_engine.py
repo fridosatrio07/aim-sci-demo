@@ -26,6 +26,6 @@ def run_rbi(asset: dict[str, Any], thickness: list[dict[str, Any]], failures: li
         "risk_level": level,
         "numeric_risk_value": numeric_risk,
         "risk_target_status": "Exceeded" if score >= 12 else "Acceptable",
-        "recommended_inspection_date": asset.get("next_inspection_due", "15 May 2026"),
+        "recommended_inspection_date": asset.get("next_due_date") or asset.get("recommended_inspection_date") or asset.get("next_inspection_due"),
         "stale_inputs": [],
     }

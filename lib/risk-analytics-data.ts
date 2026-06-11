@@ -1,3 +1,7 @@
+/**
+ * Fallback-only legacy mock data.
+ * Runtime Risk Analytics summaries should come from backend-synchronized RBI data.
+ */
 import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
@@ -109,8 +113,8 @@ export const RISK_ANALYTICS_FILTERS: RiskAnalyticsFilter[] = [
   {
     id: "projectSite",
     label: "Project / Site",
-    defaultValue: "Geothermal Dieng Unit 1",
-    options: ["Geothermal Dieng Unit 1", "PLTG Jawa-1 / Unit 1", "Offshore Platform Alpha", "Refinery Unit Balongan"]
+    defaultValue: "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility",
+    options: ["SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility"]
   },
   {
     id: "unit",

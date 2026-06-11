@@ -1,3 +1,7 @@
+/**
+ * Fallback-only legacy mock data.
+ * Runtime Risk Register rows should come from backend assets and RBI assessments.
+ */
 import type { LucideIcon } from "lucide-react";
 import type { CalculationTrace } from "@/lib/rbi-store";
 import {
@@ -92,7 +96,7 @@ export const RISK_REGISTER_FILTERS: RiskRegisterFilter[] = [
     id: "site",
     label: "Site",
     defaultValue: "All Sites",
-    options: ["All Sites", "Geothermal Dieng Unit 1", "PLTG Jawa-1 / Unit 1", "Offshore Platform Alpha", "Refinery Unit Balongan"]
+    options: ["All Sites", "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility"]
   },
   {
     id: "unit",

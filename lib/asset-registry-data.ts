@@ -1,3 +1,7 @@
+/**
+ * Fallback-only legacy mock data.
+ * Runtime Asset Registry data must come from the AIM backend API/MongoDB when available.
+ */
 import type { LucideIcon } from "lucide-react";
 import type { CalculationTrace } from "@/lib/rbi-store";
 import {
@@ -13,7 +17,7 @@ import {
   TrendingUp
 } from "lucide-react";
 
-export type AssetRiskLevel = "Extreme" | "High" | "Medium" | "Low";
+export type AssetRiskLevel = "Extreme" | "Very High" | "High" | "Medium" | "Low";
 export type AssetCriticality = "A" | "B" | "C";
 export type BoundaryStatus = "Defined" | "Safety-Critical";
 export type CertificationStatus = "Valid" | "Expiring Soon" | "Expired";
@@ -84,7 +88,7 @@ export interface DataQualityGap {
   icon: LucideIcon;
 }
 
-export const ASSET_REGISTRY_TOTAL = 1253;
+export const ASSET_REGISTRY_TOTAL = 64;
 
 export const DEFAULT_ASSET_REGISTRY_FILTERS: AssetRegistryFilterState = {
   site: "All Sites",
@@ -104,8 +108,8 @@ export const DEFAULT_ASSET_REGISTRY_FILTERS: AssetRegistryFilterState = {
 export const ASSET_REGISTRY_KPIS: AssetRegistryKpi[] = [
   {
     title: "Total Assets",
-    value: "1,253",
-    detail: "assets",
+    value: "64",
+    detail: "fallback-only demo assets",
     color: "blue",
     icon: Database
   },
@@ -147,7 +151,7 @@ export const ASSET_REGISTRY_KPIS: AssetRegistryKpi[] = [
 ];
 
 export const ASSET_REGISTRY_FILTER_OPTIONS = {
-  site: ["All Sites", "Geothermal Dieng Unit 1", "PLTG Jawa-1 / Unit 1", "Offshore Platform Alpha", "Refinery Unit Balongan"],
+  site: ["All Sites", "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility"],
   area: ["All Areas", "Process Area", "Fuel System", "Utility Area", "Protection System", "Control System", "Chemical Injection"],
   unit: ["All Units", "Process Unit", "Fuel System", "V-101 Protection System", "Measurement & Control System", "Utility System", "Chemical Injection System"],
   system: ["All Systems", "Separator System", "Condensate System", "Steam System", "Fuel System", "Protection System", "Measurement & Control System", "Utility System", "Chemical Injection System"],
@@ -166,7 +170,7 @@ export const ASSET_REGISTRY_ROWS: AssetRegistryRow[] = [
     equipmentName: "Production Separator",
     equipmentClass: "Pressure Vessel",
     taxonomyLevel: "Equipment Unit",
-    site: "Geothermal Dieng Unit 1",
+    site: "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility",
     area: "Process Area",
     unit: "Process Unit",
     system: "Separator System",
@@ -191,7 +195,7 @@ export const ASSET_REGISTRY_ROWS: AssetRegistryRow[] = [
     equipmentName: "Condensate Pump",
     equipmentClass: "Pump",
     taxonomyLevel: "Equipment Unit",
-    site: "Geothermal Dieng Unit 1",
+    site: "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility",
     area: "Process Area",
     unit: "Process Unit",
     system: "Condensate System",
@@ -216,7 +220,7 @@ export const ASSET_REGISTRY_ROWS: AssetRegistryRow[] = [
     equipmentName: "Storage Tank",
     equipmentClass: "Atmospheric Storage Tank",
     taxonomyLevel: "Equipment Unit",
-    site: "Geothermal Dieng Unit 1",
+    site: "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility",
     area: "Fuel System",
     unit: "Fuel System",
     system: "Fuel System",
@@ -241,7 +245,7 @@ export const ASSET_REGISTRY_ROWS: AssetRegistryRow[] = [
     equipmentName: "Heat Exchanger",
     equipmentClass: "Heat Exchanger",
     taxonomyLevel: "Equipment Unit",
-    site: "Geothermal Dieng Unit 1",
+    site: "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility",
     area: "Process Area",
     unit: "Process Unit",
     system: "Steam System",
@@ -266,7 +270,7 @@ export const ASSET_REGISTRY_ROWS: AssetRegistryRow[] = [
     equipmentName: "Pressure Safety Valve",
     equipmentClass: "Safety Valve",
     taxonomyLevel: "Equipment Unit",
-    site: "Geothermal Dieng Unit 1",
+    site: "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility",
     area: "Protection System",
     unit: "V-101 Protection System",
     system: "Protection System",
@@ -291,7 +295,7 @@ export const ASSET_REGISTRY_ROWS: AssetRegistryRow[] = [
     equipmentName: "Blowdown Valve",
     equipmentClass: "Valve",
     taxonomyLevel: "Equipment Unit",
-    site: "Geothermal Dieng Unit 1",
+    site: "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility",
     area: "Protection System",
     unit: "V-101 Protection System",
     system: "Protection System",
@@ -316,7 +320,7 @@ export const ASSET_REGISTRY_ROWS: AssetRegistryRow[] = [
     equipmentName: "Level Transmitter",
     equipmentClass: "Level Instrument",
     taxonomyLevel: "Component / Maintainable Item",
-    site: "Geothermal Dieng Unit 1",
+    site: "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility",
     area: "Control System",
     unit: "Measurement & Control System",
     system: "Measurement & Control System",
@@ -341,7 +345,7 @@ export const ASSET_REGISTRY_ROWS: AssetRegistryRow[] = [
     equipmentName: "Pressure Transmitter",
     equipmentClass: "Pressure Instrument",
     taxonomyLevel: "Component / Maintainable Item",
-    site: "Geothermal Dieng Unit 1",
+    site: "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility",
     area: "Control System",
     unit: "Measurement & Control System",
     system: "Measurement & Control System",
@@ -366,7 +370,7 @@ export const ASSET_REGISTRY_ROWS: AssetRegistryRow[] = [
     equipmentName: "Air Cooler",
     equipmentClass: "Heat Exchanger",
     taxonomyLevel: "Equipment Unit",
-    site: "Geothermal Dieng Unit 1",
+    site: "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility",
     area: "Utility Area",
     unit: "Utility System",
     system: "Utility System",
@@ -391,7 +395,7 @@ export const ASSET_REGISTRY_ROWS: AssetRegistryRow[] = [
     equipmentName: "Chemical Dosing Pump",
     equipmentClass: "Pump",
     taxonomyLevel: "Equipment Unit",
-    site: "Geothermal Dieng Unit 1",
+    site: "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility",
     area: "Chemical Injection",
     unit: "Chemical Injection System",
     system: "Chemical Injection System",

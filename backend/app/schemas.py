@@ -16,7 +16,7 @@ class AssetIn(BaseModel):
     unit: str
     system: str
     service: str
-    site: str = "Geothermal Dieng Unit 1"
+    site: str = "SPM-01 Instalasi Stasiun Pengumpul Minyak Demo Facility"
     area: str = "Process Area"
 
 
