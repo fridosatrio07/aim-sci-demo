@@ -9,6 +9,7 @@ const CONCRETE_APP_ROUTES = new Set([
   "/",
   "/login",
   "/dashboard",
+  "/asset-registry",
   "/risk-based-inspection/rbi-information",
   "/risk-based-inspection/risk-analytics",
   "/risk-based-inspection/risk-register",
