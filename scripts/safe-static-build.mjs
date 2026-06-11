@@ -16,6 +16,10 @@ function runNextBuild() {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [nextBin, "build"], {
       cwd: rootDir,
+      env: {
+        ...process.env,
+        NEXT_STATIC_EXPORT: "true"
+      },
       stdio: "inherit",
       shell: false
     });

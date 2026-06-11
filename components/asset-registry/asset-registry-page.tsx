@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AssetRegistryFilters } from "@/components/asset-registry/asset-registry-filters";
 import { AssetRegistryHeader } from "@/components/asset-registry/asset-registry-header";
@@ -8,6 +8,7 @@ import { AssetRegistryKpiCard } from "@/components/asset-registry/asset-registry
 import { AssetRegistryTable } from "@/components/asset-registry/asset-registry-table";
 import { DataQualityGaps } from "@/components/asset-registry/data-quality-gaps";
 import { RegistryQualityInsights } from "@/components/asset-registry/registry-quality-insights";
+import { Badge } from "@/components/ui/badge";
 import {
   ASSET_REGISTRY_KPIS,
   ASSET_REGISTRY_ROWS,
@@ -15,6 +16,8 @@ import {
   type AssetRegistryFilterState,
   type AssetRegistryRow
 } from "@/lib/asset-registry-data";
+import { aimApi } from "@/lib/api-client";
+import type { AssetApiRecord } from "@/lib/api-types";
 import { cn } from "@/lib/utils";
 
 function matchesFilter(row: AssetRegistryRow, filters: AssetRegistryFilterState) {
@@ -71,19 +74,94 @@ function Toast({ message }: { message: string }) {
   );
 }
 
+function coerceRiskLevel(value: string): AssetRegistryRow["currentRiskLevel"] {
+  if (value === "Extreme" || value === "High" || value === "Medium" || value === "Low") return value;
+  return "Medium";
+}
+
+function coerceCriticality(value: string): AssetRegistryRow["assetCriticality"] {
+  if (value === "A" || value === "B" || value === "C") return value;
+  return "B";
+}
+
+function coerceBoundary(value: string): AssetRegistryRow["boundaryStatus"] {
+  return value === "Safety-Critical" ? "Safety-Critical" : "Defined";
+}
+
+function coerceInspection(value: string): AssetRegistryRow["inspectionStatus"] {
+  if (value === "Overdue" || value === "Due Soon" || value === "Scheduled") return value;
+  return "Scheduled";
+}
+
+function coerceCertification(value: string): AssetRegistryRow["certificationStatus"] {
+  if (value === "Valid" || value === "Expiring Soon" || value === "Expired") return value;
+  return "Valid";
+}
+
+function mapApiAssetToRegistryRow(asset: AssetApiRecord): AssetRegistryRow {
+  return {
+    tagNumber: asset.tag_number,
+    equipmentName: asset.asset_name,
+    equipmentClass: asset.equipment_class,
+    taxonomyLevel: asset.taxonomy_level,
+    site: asset.site,
+    area: asset.area,
+    unit: asset.unit,
+    system: asset.system,
+    unitSystem: asset.unit_system,
+    service: asset.service,
+    currentRiskLevel: coerceRiskLevel(asset.current_risk_level),
+    assetCriticality: coerceCriticality(asset.asset_criticality),
+    boundaryStatus: coerceBoundary(asset.boundary_status),
+    reliabilityDataReadiness: asset.reliability_data_readiness,
+    linkedSafetyFunctions: asset.linked_safety_functions,
+    safetyCritical: asset.safety_critical,
+    nextInspectionDue: asset.next_inspection_due,
+    inspectionDueNote: asset.inspection_due_note,
+    inspectionStatus: coerceInspection(asset.inspection_status),
+    certificationStatus: coerceCertification(asset.certification_status),
+    equipmentType: asset.equipment_type,
+    documentKeywords: asset.document_keywords ?? [],
+    failureRecordKeywords: asset.failure_record_keywords ?? []
+  };
+}
+
 export function AssetRegistryPage() {
   const [filters, setFilters] = useState<AssetRegistryFilterState>(DEFAULT_ASSET_REGISTRY_FILTERS);
   const [toast, setToast] = useState("");
+  const [backendRows, setBackendRows] = useState<AssetRegistryRow[] | null>(null);
+  const [backendStatus, setBackendStatus] = useState<"loading" | "connected" | "fallback">("loading");
+
+  useEffect(() => {
+    let mounted = true;
+
+    aimApi
+      .listAssets()
+      .then((response) => {
+        if (!mounted) return;
+        if (response.items.length > 0) {
+          setBackendRows(response.items.map(mapApiAssetToRegistryRow));
+          setBackendStatus("connected");
+        } else {
+          setBackendStatus("fallback");
+        }
+      })
+      .catch(() => {
+        if (mounted) setBackendStatus("fallback");
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   function showToast(message: string) {
     setToast(message);
     window.setTimeout(() => setToast(""), 2600);
   }
 
-  const filteredRows = useMemo(
-    () => ASSET_REGISTRY_ROWS.filter((row) => matchesFilter(row, filters)),
-    [filters]
-  );
+  const rows = backendRows ?? ASSET_REGISTRY_ROWS;
+  const filteredRows = useMemo(() => rows.filter((row) => matchesFilter(row, filters)), [filters, rows]);
   const activeFilters = hasActiveFilters(filters);
 
   return (
@@ -92,6 +170,26 @@ export function AssetRegistryPage() {
 
       <div className="space-y-4">
         <AssetRegistryHeader onAction={showToast} />
+
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+          <span>Data Source</span>
+          {backendStatus === "connected" ? (
+            <Badge className="border-green-200 bg-green-50 text-green-700 dark:border-green-900/60 dark:bg-green-950/35 dark:text-green-200">
+              Backend API connected
+            </Badge>
+          ) : backendStatus === "loading" ? (
+            <Badge className="border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/35 dark:text-blue-200">
+              Checking backend API
+            </Badge>
+          ) : (
+            <Badge className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-200">
+              Offline fallback data
+            </Badge>
+          )}
+          <span className="text-slate-500 dark:text-slate-400">
+            The registry uses the backend when available and falls back to bundled demo data for static review.
+          </span>
+        </div>
 
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
           {ASSET_REGISTRY_KPIS.map((item) => (

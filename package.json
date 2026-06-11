@@ -7,9 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "export": "next build && node scripts/fix-static-file-paths.mjs",
-    "static": "next build && node scripts/fix-static-file-paths.mjs",
-    "build:static": "next build && node scripts/fix-static-file-paths.mjs",
+    "export": "node scripts/build-static.mjs",
+    "static": "node scripts/build-static.mjs",
+    "build:static": "node scripts/build-static.mjs",
     "build:static:safe": "node scripts/safe-static-build.mjs",
     "serve:static": "node scripts/serve-static.mjs",
     "preview:static": "node scripts/serve-static.mjs"

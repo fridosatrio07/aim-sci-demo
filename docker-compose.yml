@@ -1,0 +1,28 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: aim-sci-demo-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - aim_mongo_data:/data/db
+
+  backend:
+    build:
+      context: ./backend
+    container_name: aim-sci-demo-backend
+    restart: unless-stopped
+    depends_on:
+      - mongodb
+    environment:
+      AIM_ENV: development
+      AIM_DATABASE_MODE: mongo
+      MONGODB_URI: mongodb://mongodb:27017
+      MONGODB_DATABASE: aim_sci_demo
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+    ports:
+      - "8000:8000"
+
+volumes:
+  aim_mongo_data:

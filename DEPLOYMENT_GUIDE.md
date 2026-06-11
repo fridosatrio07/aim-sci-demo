@@ -35,6 +35,8 @@ Run the production build:
 npm run build
 ```
 
+This is now the normal dynamic-capable Next.js production build. Static export is opt-in through the static scripts below.
+
 ## Static Export
 
 Create or update the static HTML output safely:
@@ -58,6 +60,37 @@ out/
 ```
 
 This repository currently keeps `out/` tracked because the current static review/deployment flow depends on the exported website output.
+
+Do not rely on double-clicking `out/index.html` for stakeholder review. Use `npm run preview:static` so route folders, client navigation, auth storage, and backend-fallback behavior run in a browser environment close to static hosting.
+
+## Dynamic Backend MVP
+
+The frontend can now connect to a FastAPI backend:
+
+```bash
+docker compose up -d mongodb
+cd backend
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+Use Python 3.12 or newer for backend development. If your machine defaults to a very new Python release, keep dependencies updated with `pip install -r backend/requirements.txt` so Pydantic/FastAPI wheels match your interpreter.
+
+Seed the demo facility:
+
+```bash
+curl -X POST http://localhost:8000/seed/demo-facility
+```
+
+Set the frontend API URL in `.env.local`:
+
+```text
+NEXT_PUBLIC_AIM_API_URL=http://localhost:8000
+```
+
+If the backend is offline, main UI pages that have been migrated use bundled static demo data as a fallback.
 
 ## Commit And Push Future Changes
 

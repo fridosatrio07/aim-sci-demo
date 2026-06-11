@@ -3,6 +3,8 @@ node_modules
 dist
 .env
 .env*.local
+!.env.example
+!backend/.env.example
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -11,5 +13,11 @@ pnpm-debug.log*
 
 .vercel
 .env*
+!.env.example
+!backend/.env.example
 dev-check*.log
 static-preview*.log
+backend/.pytest_cache/
+backend/__pycache__/
+backend/app/**/__pycache__/
+backend/tests/**/__pycache__/

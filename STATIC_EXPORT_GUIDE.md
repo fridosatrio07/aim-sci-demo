@@ -46,15 +46,7 @@ npm run build:static
 
 ## Preview Static HTML
 
-After a successful static build, the exported app can be opened directly:
-
-```text
-out/index.html
-```
-
-Double-clicking `out/index.html` should load the prototype through `file://`, show the login page when unauthenticated, and navigate to the exported dashboard after login.
-
-You can also preview the exported site locally through a static server:
+After a successful static build, preview the exported site through the local static server:
 
 ```bash
 npm run preview:static
@@ -67,6 +59,8 @@ http://localhost:4173
 ```
 
 The safe static build runs `scripts/fix-static-file-paths.mjs` after export. That script rewrites exported HTML asset references from absolute `/_next/...` paths to relative paths so direct `file://` preview can load the generated JavaScript and CSS.
+
+Opening `out/index.html` directly through `file://` is best-effort only. Modern Next.js client routing, browser storage rules, and dynamic API calls are more reliable through a local static server, so `npm run preview:static` is the official preview command.
 
 You can use a different port:
 
@@ -126,6 +120,8 @@ Theme behavior also remains frontend-only:
 - First visit follows the browser/system theme.
 - Manual theme changes are stored in `localStorage`.
 - The no-flash theme script is included in the exported HTML.
+
+Dynamic backend calls use `NEXT_PUBLIC_AIM_API_URL` when a backend is running. If the backend is unavailable in static review, the UI falls back to bundled demo data instead of hanging on the secure workspace screen.
 
 ## Deployment
 
