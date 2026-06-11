@@ -1,8 +1,24 @@
+"use client";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RBI_ACTIVITY_SUMMARY } from "@/lib/rbi-information-data";
+import { useRbiData } from "@/lib/rbi-store";
 import { cn } from "@/lib/utils";
 
 export function RbiActivitySummary() {
+  const { assessments, registerSummary } = useRbiData();
+  const values: Record<string, string> = {
+    "Assessments Created": assessments.length.toLocaleString("en-US"),
+    "Assessments Completed": assessments.filter((assessment) => assessment.assessmentStatus === "Approved").length.toLocaleString("en-US"),
+    "Reassessments Due (Next 30 Days)": registerSummary.revalidationDue.toLocaleString("en-US"),
+    "Overdue Assessments": registerSummary.overdueInspection.toLocaleString("en-US"),
+    "Mitigation Actions Open": registerSummary.openMitigationActions.toLocaleString("en-US"),
+    "Inspection Actions Overdue": assessments
+      .flatMap((assessment) => assessment.inspectionPlan)
+      .filter((item) => item.status === "Overdue")
+      .length.toLocaleString("en-US")
+  };
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -38,7 +54,7 @@ export function RbiActivitySummary() {
                     item.critical ? "text-red-600 dark:text-red-300" : "text-slate-950 dark:text-slate-100"
                   )}
                 >
-                  {item.value}
+                {values[item.label] ?? item.value}
                 </p>
               </div>
             );

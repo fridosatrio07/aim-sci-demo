@@ -29,10 +29,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  DATA_QUALITY_OVERVIEW,
-  REGISTER_SUMMARY,
-  RISK_LEVEL_DISTRIBUTION,
-  RISK_REGISTER_ASSESSMENTS,
   RISK_REGISTER_FILTERS,
   RISK_REGISTER_QUICK_LINKS,
   type ActionStatus,
@@ -46,6 +42,7 @@ import {
   type RiskTargetStatus
 } from "@/lib/risk-register-data";
 import { useRbiData } from "@/lib/rbi-store";
+import { calculateInspectionDueStatus } from "@/lib/rbi/rbi-calculations";
 import { navigateToAppRoute } from "@/lib/static-navigation";
 import { cn } from "@/lib/utils";
 
@@ -263,7 +260,7 @@ function RiskRegisterTable({ assessments, onAction }: { assessments: RiskRegiste
   return (
     <Card className="overflow-hidden">
       <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800 lg:flex-row lg:items-center lg:justify-between">
-        <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Showing 1 to 6 of 156 assessments</p>
+        <p className="text-sm font-bold text-slate-700 dark:text-slate-200">Showing 1 to {assessments.length} of {assessments.length} assessments</p>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <select
             aria-label="Rows per page"
@@ -385,7 +382,7 @@ function RiskRegisterTable({ assessments, onAction }: { assessments: RiskRegiste
           <LegendGroup title="Risk Target Status" items={["Acceptable", "Approaching", "Exceeded"]} type="target" />
         </div>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">1 - 20 of 156</p>
+          <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">1 - {assessments.length} of {assessments.length}</p>
           <div className="flex flex-wrap items-center gap-1">
             <PaginationButton label="First page" icon={ChevronFirst} />
             <PaginationButton label="Previous page" icon={ChevronLeft} />
@@ -432,14 +429,14 @@ function LegendGroup({ title, items, type }: { title: string; items: string[]; t
   );
 }
 
-function RegisterSummaryCard() {
+function RegisterSummaryCard({ items }: { items: RegisterSummaryItem[] }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base dark:text-slate-100">Register Summary</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {REGISTER_SUMMARY.map((item) => (
+        {items.map((item) => (
           <SummaryRow key={item.label} item={item} />
         ))}
         <CardLink>View All Summary</CardLink>
@@ -564,31 +561,43 @@ function QuickLinksCard() {
 
 export function RiskRegisterPage() {
   const { message, showMessage } = usePrototypeMessage();
-  const { state: rbiState } = useRbiData();
-  const activeAssessment: RiskRegisterAssessment = {
-    assessmentId: rbiState.activeAssessmentId,
-    tagNumber: rbiState.tagNumber,
-    equipmentComponent: `${rbiState.assetName} (Inlet Nozzle)`,
-    equipmentType: rbiState.equipmentType,
-    governingDamageMechanism: rbiState.selectedDamageMechanisms[0] ?? "Localized Corrosion",
-    pofCategory: rbiState.pof.category,
-    cofCategory: rbiState.cof.category,
-    numericRiskValue: rbiState.risk.numericRiskValue,
-    riskBasis: "Area Risk (ft2-yr)",
-    riskLevel: rbiState.risk.level,
-    riskTargetStatus: rbiState.risk.targetStatus,
-    residualRisk: rbiState.risk.residualRisk,
-    recommendedInspectionDate: rbiState.recommendedInspectionDate,
-    recommendedInspectionOverdue: false,
-    revalidationDueDate: rbiState.revalidationDueDate,
-    revalidationOverdue: false,
-    dataConfidence: rbiState.dataConfidence,
-    assessmentStatus: rbiState.assessmentStatus
-  };
-  const assessments = [
-    activeAssessment,
-    ...RISK_REGISTER_ASSESSMENTS.filter((assessment) => assessment.assessmentId !== rbiState.activeAssessmentId)
+  const { assessments: storeAssessments, assets, registerSummary, riskDistribution } = useRbiData();
+  const assessments: RiskRegisterAssessment[] = storeAssessments.map((assessment) => {
+    const asset = assets.find((item) => item.id === assessment.assetId);
+    return {
+      assessmentId: assessment.assessmentId,
+      tagNumber: asset?.tagNumber ?? assessment.assetId,
+      equipmentComponent: `${asset?.assetName ?? assessment.assetId} (${assessment.selectedDamageMechanisms[0]?.name ?? "Governing Component"})`,
+      equipmentType: asset?.equipmentType ?? "Equipment",
+      governingDamageMechanism: assessment.selectedDamageMechanisms[0]?.name ?? "Not screened",
+      pofCategory: assessment.pof.category,
+      cofCategory: assessment.cof.category,
+      numericRiskValue: assessment.riskDetermination.numericRiskValue,
+      riskBasis: assessment.riskTarget.basis,
+      riskLevel: assessment.riskDetermination.level,
+      riskTargetStatus: assessment.riskDetermination.targetStatus,
+      residualRisk: assessment.riskDetermination.residualRisk,
+      recommendedInspectionDate: assessment.recommendation.inspectionDate,
+      recommendedInspectionOverdue: calculateInspectionDueStatus(assessment.recommendation.inspectionDate) === "Overdue",
+      revalidationDueDate: assessment.revalidationDueDate,
+      revalidationOverdue: calculateInspectionDueStatus(assessment.revalidationDueDate) === "Overdue",
+      dataConfidence: assessment.dataConfidence,
+      assessmentStatus: assessment.assessmentStatus
+    };
+  });
+  const summaryItems: RegisterSummaryItem[] = [
+    { label: "Total Assessments", value: registerSummary.totalAssessments.toLocaleString("en-US") },
+    { label: "Target Exceeded", value: registerSummary.targetExceeded.toLocaleString("en-US"), tone: "red" },
+    { label: "Overdue Inspection", value: registerSummary.overdueInspection.toLocaleString("en-US"), tone: "red" },
+    { label: "Revalidation Due", value: registerSummary.revalidationDue.toLocaleString("en-US"), tone: "orange" },
+    { label: "Open Mitigation Actions", value: registerSummary.openMitigationActions.toLocaleString("en-US"), tone: "orange" },
+    { label: "Low Data Confidence (<70%)", value: registerSummary.lowDataConfidence.toLocaleString("en-US"), tone: "red" }
   ];
+  const dataQualityDistribution = [
+    { label: "High (85-100%)", value: assets.filter((asset) => asset.dataQualityProfile.completeness >= 85).length, color: "#16a34a" },
+    { label: "Medium (70-84%)", value: assets.filter((asset) => asset.dataQualityProfile.completeness >= 70 && asset.dataQualityProfile.completeness < 85).length, color: "#f59e0b" },
+    { label: "Low (<70%)", value: assets.filter((asset) => asset.dataQualityProfile.completeness < 70).length, color: "#ef4444" }
+  ].map((item) => ({ ...item, percentage: Math.round((item.value / Math.max(1, assets.length)) * 100) }));
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-4 overflow-hidden">
@@ -601,19 +610,19 @@ export function RiskRegisterPage() {
           <RiskRegisterTable assessments={assessments} onAction={showMessage} />
         </div>
         <aside className="grid min-w-0 gap-4 md:grid-cols-2 2xl:grid-cols-1" aria-label="Risk register summary cards">
-          <RegisterSummaryCard />
+          <RegisterSummaryCard items={summaryItems} />
           <DonutCard
             title="Risk Level Distribution"
-            centerTop="1,248"
-            centerBottom="Total Assets"
-            data={RISK_LEVEL_DISTRIBUTION}
+            centerTop={storeAssessments.length.toLocaleString("en-US")}
+            centerBottom="Assessments"
+            data={riskDistribution}
             link="View Distribution Details"
           />
           <DonutCard
             title="Data Quality Overview"
-            centerTop="82%"
+            centerTop={`${Math.round(assets.reduce((sum, asset) => sum + asset.dataQualityProfile.completeness, 0) / Math.max(1, assets.length))}%`}
             centerBottom="Average"
-            data={DATA_QUALITY_OVERVIEW}
+            data={dataQualityDistribution}
             link="View Data Quality Heatmap"
           />
           <QuickLinksCard />

@@ -30,14 +30,12 @@ import {
   COF_CONTRIBUTORS,
   DATA_QUALITY_COLUMNS,
   DATA_QUALITY_HEATMAP,
-  HIGH_RISK_ASSETS,
   INSPECTION_EFFECTIVENESS_DISTRIBUTION,
   MITIGATION_EFFECTIVENESS,
   POF_CONTRIBUTORS,
   RISK_ANALYTICS_FILTERS,
   RISK_ANALYTICS_KPIS,
   RISK_BAND_LABELS,
-  RISK_DISTRIBUTION,
   RISK_LEVEL_COLORS,
   RISK_MATRIX_POF_LABELS,
   RISK_MATRIX_ROWS,
@@ -158,11 +156,31 @@ function RbiFilterBar() {
   );
 }
 
-function RiskAnalyticsKpiGrid({ activeRiskLevel }: { activeRiskLevel: RiskLevel }) {
+function RiskAnalyticsKpiGrid({
+  activeRiskLevel,
+  summary
+}: {
+  activeRiskLevel: RiskLevel;
+  summary: {
+    highRiskAssets: number;
+    extremeRiskAssets: number;
+    targetExceeded: number;
+    revalidationDue: number;
+    averageRiskScore: number;
+    riskReductionAfterMitigation: number;
+  };
+}) {
   return (
     <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6" aria-label="Risk analytics KPI summary">
       {RISK_ANALYTICS_KPIS.map((item) => {
-        const displayValue = item.title === "High Risk Assets" && activeRiskLevel === "Extreme" ? "238" : item.value;
+        const displayValue =
+          item.title === "High Risk Assets" ? summary.highRiskAssets.toLocaleString("en-US") :
+          item.title === "Extreme Risk Assets" ? summary.extremeRiskAssets.toLocaleString("en-US") :
+          item.title === "Assets Exceeding Risk Target" ? summary.targetExceeded.toLocaleString("en-US") :
+          item.title === "Revalidation Due" ? summary.revalidationDue.toLocaleString("en-US") :
+          item.title === "Average Risk Score" ? `${summary.averageRiskScore.toFixed(1)} / 25` :
+          item.title === "Risk Reduction After Mitigation" ? `${Math.round(summary.riskReductionAfterMitigation)}%` :
+          item.title === "High Risk Assets" && activeRiskLevel === "Extreme" ? "238" : item.value;
         const Icon = item.icon;
         const TrendIcon = item.trendDirection === "up" ? ArrowUpRight : ArrowDownRight;
         const color = analyticsColorStyles[item.color];
@@ -237,8 +255,8 @@ function Api581RiskMatrix() {
   );
 }
 
-function RiskDistributionChart() {
-  const chartData = RISK_DISTRIBUTION.map((item) => ({ ...item, display: `${item.value} (${item.percentage}%)` }));
+function RiskDistributionChart({ data }: { data: Array<{ label: string; value: number; percentage: number; color: string }> }) {
+  const chartData = data.map((item) => ({ ...item, display: `${item.value} (${item.percentage}%)` }));
 
   return (
     <Card>
@@ -261,7 +279,7 @@ function RiskDistributionChart() {
           </ResponsiveContainer>
         </div>
         <div className="-mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {RISK_DISTRIBUTION.map((item) => (
+          {data.map((item) => (
             <span key={item.label} className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
               {item.label}: {item.value} ({item.percentage}%)
@@ -591,19 +609,22 @@ function InspectionEffectivenessDistribution() {
 }
 
 export function RiskAnalyticsPage() {
-  const { state: rbiState } = useRbiData();
-  const activeAsset: HighRiskAsset = {
-    tagNumber: rbiState.tagNumber,
-    assetName: rbiState.assetName,
-    unit: rbiState.unit,
-    damageMechanism: rbiState.selectedDamageMechanisms[0] ?? "Localized Corrosion",
-    riskScore: rbiState.risk.level === "Extreme" ? 21.3 : 16.8,
-    riskLevel: rbiState.risk.level === "Extreme" ? "Extreme" : "High"
-  };
-  const highRiskAssets = [
-    activeAsset,
-    ...HIGH_RISK_ASSETS.filter((asset) => asset.tagNumber !== rbiState.tagNumber)
-  ];
+  const { state: rbiState, assessments, assets, analyticsSummary, riskDistribution } = useRbiData();
+  const highRiskAssets: HighRiskAsset[] = assessments
+    .filter((assessment) => ["High", "Very High", "Extreme"].includes(assessment.riskDetermination.level))
+    .sort((a, b) => b.riskDetermination.score - a.riskDetermination.score)
+    .slice(0, 10)
+    .map((assessment) => {
+      const asset = assets.find((item) => item.id === assessment.assetId);
+      return {
+        tagNumber: asset?.tagNumber ?? assessment.assetId,
+        assetName: asset?.assetName ?? assessment.assetId,
+        unit: asset?.unit ?? "-",
+        damageMechanism: assessment.selectedDamageMechanisms[0]?.name ?? "Not screened",
+        riskScore: assessment.riskDetermination.score,
+        riskLevel: assessment.riskDetermination.level === "Extreme" ? "Extreme" : "High"
+      };
+    });
 
   return (
     <div className="min-w-0 space-y-4 overflow-hidden">
@@ -619,14 +640,14 @@ export function RiskAnalyticsPage() {
       </section>
 
       <RbiFilterBar />
-      <RiskAnalyticsKpiGrid activeRiskLevel={rbiState.risk.level} />
+      <RiskAnalyticsKpiGrid activeRiskLevel={rbiState.risk.level} summary={analyticsSummary} />
 
       <section className="grid min-w-0 items-start gap-4 lg:grid-cols-2 2xl:grid-cols-12" aria-label="Primary risk overview">
         <div className="min-w-0 2xl:col-span-5">
           <Api581RiskMatrix />
         </div>
         <div className="min-w-0 2xl:col-span-3">
-          <RiskDistributionChart />
+          <RiskDistributionChart data={riskDistribution} />
         </div>
         <div className="min-w-0 lg:col-span-2 2xl:col-span-4">
           <PofCofScatterChart />

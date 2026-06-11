@@ -657,6 +657,13 @@ function ActionBar({
   onPrevious: () => void;
   onNext: () => void;
 }) {
+  const {
+    setAssessmentStatus,
+    setApprovalStatus,
+    recalculateRisk,
+    generateInspectionPlan
+  } = useRbiData();
+
   if (activeStep === 8) {
     return (
       <Card className="border-blue-100 bg-blue-50/60 dark:border-blue-900/40 dark:bg-blue-950/20">
@@ -665,19 +672,19 @@ function ActionBar({
             Previous
           </Button>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap xl:justify-end">
-            <Button type="button" onClick={() => onAction("Assessment submitted for review in prototype mode.")}>
+            <Button type="button" onClick={() => { setApprovalStatus("In Review"); onAction("Assessment submitted for review in prototype mode."); }}>
               <Send className="h-4 w-4" aria-hidden="true" />
               Submit for Review
             </Button>
-            <Button type="button" className="bg-orange-600 hover:bg-orange-700" onClick={() => onAction("Revision request is prepared for future development.")}>
+            <Button type="button" className="bg-orange-600 hover:bg-orange-700" onClick={() => { setApprovalStatus("Revision Requested"); onAction("Revision requested in prototype mode."); }}>
               <RotateCw className="h-4 w-4" aria-hidden="true" />
               Request Revision
             </Button>
-            <Button type="button" className="bg-red-700 hover:bg-red-800" onClick={() => onAction("Risk assessment rejection is prepared for future development.")}>
+            <Button type="button" className="bg-red-700 hover:bg-red-800" onClick={() => { setApprovalStatus("Rejected"); onAction("Risk assessment rejected in prototype mode."); }}>
               <XCircle className="h-4 w-4" aria-hidden="true" />
               Reject
             </Button>
-            <Button type="button" className="bg-green-700 hover:bg-green-800" onClick={() => onAction("Risk assessment approved in prototype mode.")}>
+            <Button type="button" className="bg-green-700 hover:bg-green-800" onClick={() => { setApprovalStatus("Approved"); onAction("Risk assessment approved in prototype mode."); }}>
               <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
               Approve
             </Button>
@@ -696,11 +703,11 @@ function ActionBar({
       <Card className="border-blue-100 bg-blue-50/60 dark:border-blue-900/40 dark:bg-blue-950/20">
         <div className="flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Button type="button" variant="outline" onClick={() => onAction("Add Mitigation Action is prepared for future development.")}>
+            <Button type="button" variant="outline" onClick={() => { generateInspectionPlan(); onAction("Mitigation action list refreshed from current risk result."); }}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               Add Mitigation Action
             </Button>
-            <Button type="button" variant="outline" onClick={() => onAction("Draft saved in prototype mode.")}>
+            <Button type="button" variant="outline" onClick={() => { setAssessmentStatus("Draft"); onAction("Draft saved in prototype mode."); }}>
               <Save className="h-4 w-4" aria-hidden="true" />
               Save Draft
             </Button>
@@ -709,7 +716,7 @@ function ActionBar({
             <Button type="button" variant="outline" onClick={onPrevious}>
               Previous
             </Button>
-            <Button type="button" onClick={() => onAction("Recommendation saved in prototype mode.")}>
+            <Button type="button" onClick={() => { generateInspectionPlan(); setAssessmentStatus("In Progress"); onAction("Recommendation saved and synchronized with the RBI register."); }}>
               Save Recommendation
             </Button>
             <Button type="button" className="bg-green-700 hover:bg-green-800" onClick={onNext}>
@@ -726,11 +733,11 @@ function ActionBar({
       <Card className="border-blue-100 bg-blue-50/60 dark:border-blue-900/40 dark:bg-blue-950/20">
         <div className="flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Button type="button" variant="outline" onClick={() => onAction("Risk result saved in prototype mode.")}>
+            <Button type="button" variant="outline" onClick={() => { setAssessmentStatus("In Progress"); onAction("Risk result saved in prototype mode."); }}>
               <Save className="h-4 w-4" aria-hidden="true" />
               Save Result
             </Button>
-            <Button type="button" variant="outline" onClick={() => onAction("Risk recalculation is prepared for future development.")}>
+            <Button type="button" variant="outline" onClick={() => { recalculateRisk(); onAction("Risk recalculated from current PoF, CoF, and mitigation values."); }}>
               <RotateCw className="h-4 w-4" aria-hidden="true" />
               Recalculate Risk
             </Button>
@@ -753,7 +760,7 @@ function ActionBar({
   return (
     <Card className="border-blue-100 bg-blue-50/60 dark:border-blue-900/40 dark:bg-blue-950/20">
       <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
-        <Button type="button" variant="outline" onClick={() => onAction("Draft saved in prototype mode.")}>
+        <Button type="button" variant="outline" onClick={() => { setAssessmentStatus("Draft"); onAction("Draft saved in prototype mode."); }}>
           <Save className="h-4 w-4" aria-hidden="true" />
           Save Draft
         </Button>

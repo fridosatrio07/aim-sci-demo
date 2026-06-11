@@ -3,11 +3,12 @@
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { RBI_RISK_PROFILE } from "@/lib/rbi-information-data";
-
-const totalAssets = RBI_RISK_PROFILE.reduce((total, item) => total + item.value, 0);
+import { useRbiData } from "@/lib/rbi-store";
 
 export function RbiRiskProfileCard() {
+  const { riskDistribution, assessments } = useRbiData();
+  const totalAssets = Math.max(1, assessments.length);
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -20,7 +21,7 @@ export function RbiRiskProfileCard() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={RBI_RISK_PROFILE}
+                  data={riskDistribution}
                   dataKey="value"
                   nameKey="label"
                   innerRadius="58%"
@@ -28,7 +29,7 @@ export function RbiRiskProfileCard() {
                   paddingAngle={2}
                   stroke="transparent"
                 >
-                  {RBI_RISK_PROFILE.map((item) => (
+                  {riskDistribution.map((item) => (
                     <Cell key={item.label} fill={item.color} />
                   ))}
                 </Pie>
@@ -45,7 +46,7 @@ export function RbiRiskProfileCard() {
           </div>
 
           <div className="min-w-0 space-y-2.5 self-center">
-            {RBI_RISK_PROFILE.map((item) => (
+            {riskDistribution.map((item) => (
               <div key={item.label} className="flex min-w-0 items-center gap-3">
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
                 <div className="min-w-0 flex-1">

@@ -7,17 +7,18 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   RBI_RISK_LEGEND,
-  RECENT_RBI_ASSESSMENTS,
   type RecentRbiAssessment,
   type RbiAssessmentStatus,
-  type RbiRiskLevel,
   type RbiTargetStatus
 } from "@/lib/rbi-information-data";
 import { useRbiData } from "@/lib/rbi-store";
 import { cn } from "@/lib/utils";
 
-function riskVariant(risk: RbiRiskLevel) {
-  return risk === "High" ? "orange" : "yellow";
+function riskVariant(risk: string) {
+  if (risk === "Low") return "green";
+  if (risk === "Medium") return "yellow";
+  if (risk === "Extreme" || risk === "Very High") return "red";
+  return "orange";
 }
 
 function targetBadgeClass(status: RbiTargetStatus) {
@@ -40,22 +41,21 @@ function assessmentStatusClass(status: RbiAssessmentStatus) {
 }
 
 export function RecentRbiAssessmentsTable() {
-  const { state: rbiState } = useRbiData();
-  const activeAssessment: RecentRbiAssessment = {
-    assessmentId: rbiState.activeAssessmentId,
-    tagNumber: rbiState.tagNumber,
-    equipmentType: rbiState.equipmentType,
-    assessmentDate: rbiState.assessmentDate,
-    pof: rbiState.pof.numeric,
-    cof: rbiState.cof.areaConsequence.replace(" ft2", ""),
-    riskLevel: rbiState.risk.level === "Medium" ? "Medium" : "High",
-    targetStatus: rbiState.risk.targetStatus === "Exceeded" ? "Exceeded" : "Acceptable",
-    assessmentStatus: rbiState.assessmentStatus
-  };
-  const assessments = [
-    activeAssessment,
-    ...RECENT_RBI_ASSESSMENTS.filter((assessment) => assessment.assessmentId !== rbiState.activeAssessmentId)
-  ];
+  const { assessments: storeAssessments, assets } = useRbiData();
+  const assessments: RecentRbiAssessment[] = storeAssessments.slice(0, 8).map((assessment) => {
+    const asset = assets.find((item) => item.id === assessment.assetId);
+    return {
+      assessmentId: assessment.assessmentId,
+      tagNumber: asset?.tagNumber ?? assessment.assetId,
+      equipmentType: asset?.equipmentType ?? "Equipment",
+      assessmentDate: assessment.assessmentDate,
+      pof: assessment.pof.numeric,
+      cof: assessment.cof.areaConsequence.replace(" ft2", "").replace(" ft²", ""),
+      riskLevel: assessment.riskDetermination.level === "Low" ? "Medium" : assessment.riskDetermination.level === "Very High" || assessment.riskDetermination.level === "Extreme" ? "High" : assessment.riskDetermination.level,
+      targetStatus: assessment.riskDetermination.targetStatus === "Exceeded" ? "Exceeded" : "Acceptable",
+      assessmentStatus: assessment.assessmentStatus
+    };
+  });
 
   return (
     <Card>
